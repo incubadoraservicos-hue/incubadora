@@ -10,6 +10,8 @@ import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 
+import Image from 'next/image'
+
 export default function LoginPage() {
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
@@ -46,21 +48,43 @@ export default function LoginPage() {
     }
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
-            <Card className="w-full max-w-md border-none shadow-xl">
-                <CardHeader className="space-y-1 text-center">
-                    <div className="flex justify-center mb-4 text-primary font-bold text-2xl tracking-tighter">
-                        INCUBADORA DE SOLUÇÕES
+        <div className="relative flex min-h-screen items-center justify-center p-4 overflow-hidden">
+            {/* Background Image with Overlay */}
+            <div className="absolute inset-0 z-0">
+                <Image
+                    src="/landing.png"
+                    alt="Background"
+                    fill
+                    className="object-cover"
+                    priority
+                />
+                <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-[1px]" />
+            </div>
+
+            <Card className="relative z-10 w-full max-w-md border-none shadow-2xl bg-white/95 backdrop-blur-md">
+                <CardHeader className="space-y-4 text-center">
+                    <div className="flex justify-center">
+                        <div className="relative h-20 w-56">
+                            <Image
+                                src="/logo.png"
+                                alt="Incubadora de Soluções"
+                                fill
+                                className="object-contain"
+                                priority
+                            />
+                        </div>
                     </div>
-                    <CardTitle className="text-2xl">Acesso ao Sistema</CardTitle>
-                    <CardDescription>
-                        Entre com as suas credenciais para aceder à plataforma
-                    </CardDescription>
+                    <div>
+                        <CardTitle className="text-2xl font-bold text-slate-900">Acesso à Plataforma</CardTitle>
+                        <CardDescription className="text-slate-500">
+                            Gestão Empresarial & Soluções Digitais
+                        </CardDescription>
+                    </div>
                 </CardHeader>
                 <form onSubmit={handleLogin}>
                     <CardContent className="grid gap-4">
                         <div className="grid gap-2">
-                            <Label htmlFor="email">E-mail</Label>
+                            <Label htmlFor="email" className="text-slate-700">E-mail</Label>
                             <Input
                                 id="email"
                                 type="email"
@@ -68,7 +92,7 @@ export default function LoginPage() {
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 required
-                                className="bg-slate-50/50"
+                                className="bg-white border-slate-200 focus:border-indigo-500"
                             />
                         </div>
                         <div className="grid gap-2">
@@ -79,15 +103,18 @@ export default function LoginPage() {
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 required
-                                className="bg-slate-50/50"
+                                className="bg-white border-slate-200"
                             />
                         </div>
                     </CardContent>
-                    <CardFooter>
-                        <Button className="w-full" type="submit" disabled={loading}>
+                    <CardFooter className="flex flex-col gap-4">
+                        <Button className="w-full bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100 h-11" type="submit" disabled={loading}>
                             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Entrar
+                            Entrar no Sistema
                         </Button>
+                        <p className="text-[10px] text-center text-slate-400 uppercase tracking-widest">
+                            © {new Date().getFullYear()} Incubadora de Soluções
+                        </p>
                     </CardFooter>
                 </form>
             </Card>

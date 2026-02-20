@@ -11,7 +11,7 @@ export default function MasterLayout({
             <main className="pl-64">
                 <header className="sticky top-0 z-30 flex h-16 items-center border-b bg-white px-8 shadow-sm">
                     <div className="flex flex-1 items-center justify-between">
-                        <h1 className="text-lg font-semibold text-slate-900">Incubadora de Soluções</h1>
+                        <h1 className="text-lg font-bold tracking-tight text-slate-900">PLATAFORMA GESTÃO</h1>
                         <div className="flex items-center gap-4">
                             <span className="text-sm text-slate-500">Afonso Pene (Master)</span>
                             <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">

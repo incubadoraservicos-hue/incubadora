@@ -8,15 +8,18 @@ import {
     Wallet,
     Files,
     FileSignature,
+    Settings,
     LogOut
 } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
+import Image from 'next/image'
 
 const menuItems = [
     { icon: ClipboardList, label: 'Minhas Missões', href: '/colaborador/minhas-os' },
     { icon: FileSignature, label: 'Meus Acordos', href: '/colaborador/meus-contratos' },
     { icon: Wallet, label: 'Meu Saldo', href: '/colaborador/meu-saldo' },
     { icon: Files, label: 'Meus Documentos', href: '/colaborador/meus-documentos' },
+    { icon: Settings, label: 'Configurações', href: '/colaborador/configuracoes' },
 ]
 
 export function CollaboratorSidebar() {
@@ -31,10 +34,16 @@ export function CollaboratorSidebar() {
     return (
         <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r bg-white">
             <div className="flex h-full flex-col px-3 py-4">
-                <div className="mb-10 flex items-center px-2 py-4">
-                    <span className="text-xl font-bold tracking-tight text-primary">
-                        INCUBADORA
-                    </span>
+                <div className="mb-10 flex items-center px-4 py-2">
+                    <div className="relative h-12 w-full">
+                        <Image
+                            src="/logo.png"
+                            alt="Logo"
+                            fill
+                            className="object-contain object-left"
+                            priority
+                        />
+                    </div>
                 </div>
 
                 <nav className="flex-1 space-y-1">
