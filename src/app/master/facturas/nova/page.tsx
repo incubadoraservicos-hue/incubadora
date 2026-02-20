@@ -106,7 +106,7 @@ export default function NovaFacturaPage() {
                 subtotal,
                 iva_total: ivaTotal,
                 total,
-                estado: isExternal ? 'paga' : 'emitida',
+                estado: 'emitida',
                 notas: isExternal ? 'Factura externa carregada' : formData.notas,
                 data_emissao: new Date().toISOString().split('T')[0]
             }]).select()

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/utils/supabase/client'
+import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
@@ -11,7 +12,9 @@ import {
     CheckCircle2,
     User,
     MoreVertical,
-    Banknote
+    Banknote,
+    Trash,
+    FileSignature
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -39,15 +42,19 @@ import { Input } from '@/components/ui/input'
 export default function OrdensServicoPage() {
     const [os, setOs] = useState<any[]>([])
     const [colaboradores, setColaboradores] = useState<any[]>([])
+    const [clientes, setClientes] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [isNewOpen, setIsNewOpen] = useState(false)
+    const [selectedReport, setSelectedReport] = useState<any>(null)
     const supabase = createClient()
 
     const [formData, setFormData] = useState({
         colaborador_id: '',
+        cliente_id: '',
         descricao: '',
-        valor: '',
+        valor_colaborador: 0,
         prazo: '',
+        despesas: [] as { tipo: string, valor: number, descricao: string }[]
     })
 
     useEffect(() => {
@@ -56,33 +63,70 @@ export default function OrdensServicoPage() {
 
     const fetchData = async () => {
         setLoading(true)
-        const [osRes, colabRes] = await Promise.all([
-            supabase.from('ordens_servico').select('*, colaboradores(nome)').order('created_at', { ascending: false }),
-            supabase.from('colaboradores').select('id, nome').eq('estado', 'activo')
+        const [osRes, colabRes, clientRes] = await Promise.all([
+            supabase.from('ordens_servico').select('*, colaboradores(nome), clientes(nome)').order('created_at', { ascending: false }),
+            supabase.from('colaboradores').select('id, nome').eq('estado', 'activo'),
+            supabase.from('clientes').select('id, nome').eq('estado', 'activo')
         ])
 
         if (osRes.error) toast.error('Erro ao carregar OS')
         else setOs(osRes.data || [])
 
         if (colabRes.data) setColaboradores(colabRes.data)
+        if (clientRes.data) setClientes(clientRes.data)
         setLoading(false)
+    }
+
+    const addDespesa = () => {
+        setFormData(prev => ({
+            ...prev,
+            despesas: [...prev.despesas, { tipo: 'Transporte', valor: 0, descricao: '' }]
+        }))
+    }
+
+    const removeDespesa = (index: number) => {
+        setFormData(prev => ({
+            ...prev,
+            despesas: prev.despesas.filter((_, i) => i !== index)
+        }))
+    }
+
+    const updateDespesa = (index: number, field: string, value: any) => {
+        const newDespesas = [...formData.despesas]
+        newDespesas[index] = { ...newDespesas[index], [field]: value }
+        setFormData({ ...formData, despesas: newDespesas })
+    }
+
+    const calculateTotal = () => {
+        const extra = formData.despesas.reduce((acc, curr) => acc + Number(curr.valor), 0)
+        return Number(formData.valor_colaborador) + extra
     }
 
     const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault()
 
-        // Generate simple number for demo
         const numero = `OS-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`
+        const total = calculateTotal()
 
         const { error } = await supabase.from('ordens_servico').insert([
-            { ...formData, valor: parseFloat(formData.valor), numero, estado: 'enviada' }
+            {
+                colaborador_id: formData.colaborador_id,
+                cliente_id: formData.cliente_id,
+                descricao: formData.descricao,
+                valor_colaborador: formData.valor_colaborador,
+                despesas_adicionais: formData.despesas,
+                valor: total,
+                numero,
+                prazo: formData.prazo,
+                estado: 'enviada'
+            }
         ])
 
         if (error) toast.error('Erro: ' + error.message)
         else {
             toast.success('Ordem de Serviço enviada!')
             setIsNewOpen(false)
-            setFormData({ colaborador_id: '', descricao: '', valor: '', prazo: '' })
+            setFormData({ colaborador_id: '', cliente_id: '', descricao: '', valor_colaborador: 0, prazo: '', despesas: [] })
             fetchData()
         }
     }
@@ -117,18 +161,33 @@ export default function OrdensServicoPage() {
                                 <DialogTitle>Nova Ordem de Serviço</DialogTitle>
                             </DialogHeader>
                             <div className="grid gap-4 py-4">
-                                <div className="grid gap-2">
-                                    <Label>Colaborador</Label>
-                                    <Select onValueChange={v => setFormData({ ...formData, colaborador_id: v })}>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Seleccione um colaborador" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {colaboradores.map(c => (
-                                                <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid gap-2">
+                                        <Label>Cliente</Label>
+                                        <Select onValueChange={v => setFormData({ ...formData, cliente_id: v })}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Seleccione..." />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {clientes.map(c => (
+                                                    <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label>Colaborador</Label>
+                                        <Select onValueChange={v => setFormData({ ...formData, colaborador_id: v })}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Seleccione..." />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {colaboradores.map(c => (
+                                                    <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
                                 </div>
                                 <div className="grid gap-2">
                                     <Label>Descrição do Serviço</Label>
@@ -141,11 +200,11 @@ export default function OrdensServicoPage() {
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="grid gap-2">
-                                        <Label>Valor a Pagar (MT)</Label>
+                                        <Label>Valor do Técnico (MT)</Label>
                                         <Input
                                             type="number"
-                                            value={formData.valor}
-                                            onChange={e => setFormData({ ...formData, valor: e.target.value })}
+                                            value={formData.valor_colaborador}
+                                            onChange={e => setFormData({ ...formData, valor_colaborador: Number(e.target.value) })}
                                             required
                                         />
                                     </div>
@@ -159,9 +218,64 @@ export default function OrdensServicoPage() {
                                         />
                                     </div>
                                 </div>
+
+                                <div className="space-y-3 pt-4 border-t">
+                                    <div className="flex items-center justify-between">
+                                        <Label className="text-blue-600 font-bold">Outras Despesas (Custo Operacional)</Label>
+                                        <Button type="button" variant="ghost" size="sm" onClick={addDespesa} className="text-xs">
+                                            <Plus className="h-3 w-3 mr-1" /> Adicionar
+                                        </Button>
+                                    </div>
+
+                                    {formData.despesas.map((desp, idx) => (
+                                        <div key={idx} className="grid grid-cols-12 gap-2 items-end bg-slate-50 p-2 rounded border border-slate-100 relative group">
+                                            <div className="col-span-4">
+                                                <Select value={desp.tipo} onValueChange={v => updateDespesa(idx, 'tipo', v)}>
+                                                    <SelectTrigger className="h-8 text-xs">
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="Transporte">Transporte</SelectItem>
+                                                        <SelectItem value="Alimentação">Alimentação</SelectItem>
+                                                        <SelectItem value="Combustível">Combustível</SelectItem>
+                                                        <SelectItem value="Comunicação">Comunicação</SelectItem>
+                                                        <SelectItem value="Outro">Outro</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                            <div className="col-span-5">
+                                                <Input
+                                                    placeholder="Valor"
+                                                    type="number"
+                                                    className="h-8 text-xs"
+                                                    value={desp.valor}
+                                                    onChange={e => updateDespesa(idx, 'valor', e.target.value)}
+                                                />
+                                            </div>
+                                            <div className="col-span-3">
+                                                <Button type="button" variant="ghost" size="sm" onClick={() => removeDespesa(idx)} className="h-8 text-red-500">
+                                                    <Trash className="h-3 w-3" />
+                                                </Button>
+                                            </div>
+                                            <div className="col-span-12">
+                                                <Input
+                                                    placeholder="Observação (ex: Recibo 123)"
+                                                    className="h-7 text-[10px]"
+                                                    value={desp.descricao}
+                                                    onChange={e => updateDespesa(idx, 'descricao', e.target.value)}
+                                                />
+                                            </div>
+                                        </div>
+                                    ))}
+
+                                    <div className="bg-slate-900 text-white p-3 rounded-lg mt-4 flex justify-between items-center">
+                                        <span className="text-xs opacity-70">CUSTO TOTAL DA MISSÃO:</span>
+                                        <span className="font-bold text-lg">{new Intl.NumberFormat('pt-MZ', { style: 'currency', currency: 'MZN' }).format(calculateTotal())}</span>
+                                    </div>
+                                </div>
                             </div>
                             <DialogFooter>
-                                <Button type="submit">Enviar OS</Button>
+                                <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700">Emitir Missão</Button>
                             </DialogFooter>
                         </form>
                     </DialogContent>
@@ -173,7 +287,8 @@ export default function OrdensServicoPage() {
                     <TableHeader className="bg-slate-50/50">
                         <TableRow>
                             <TableHead>Número</TableHead>
-                            <TableHead>Colaborador</TableHead>
+                            <TableHead>Cliente</TableHead>
+                            <TableHead>Atribuído a</TableHead>
                             <TableHead>Descrição</TableHead>
                             <TableHead>Prazo</TableHead>
                             <TableHead>Valor</TableHead>
@@ -189,21 +304,61 @@ export default function OrdensServicoPage() {
                         ) : os.map(item => (
                             <TableRow key={item.id}>
                                 <TableCell className="font-mono text-xs font-bold">{item.numero}</TableCell>
-                                <TableCell>{item.colaboradores?.nome}</TableCell>
-                                <TableCell className="max-w-[200px] truncate text-slate-600 text-xs">{item.descricao}</TableCell>
+                                <TableCell className="font-medium text-xs text-blue-600">{item.clientes?.nome || 'Vários'}</TableCell>
+                                <TableCell className="text-xs">{item.colaboradores?.nome}</TableCell>
+                                <TableCell className="max-w-[150px] truncate text-slate-600 text-xs">{item.descricao}</TableCell>
                                 <TableCell className="text-xs">{item.prazo ? new Date(item.prazo).toLocaleDateString() : '---'}</TableCell>
                                 <TableCell className="font-bold">
                                     {new Intl.NumberFormat('pt-MZ', { style: 'currency', currency: 'MZN' }).format(item.valor)}
                                 </TableCell>
                                 <TableCell>{getStatusBadge(item.estado)}</TableCell>
                                 <TableCell className="text-right">
-                                    <Button variant="ghost" size="icon"><MoreVertical size={16} /></Button>
+                                    <div className="flex justify-end gap-2">
+                                        {item.relatorio && (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="h-8 text-[10px] text-purple-600 border-purple-200 bg-purple-50"
+                                                onClick={() => setSelectedReport(item)}
+                                            >
+                                                Ver Relatório
+                                            </Button>
+                                        )}
+                                        {item.estado === 'concluida' && (
+                                            <Link href={`/master/contratos/novo-termo?os_id=${item.id}`}>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="h-8 text-[10px] text-amber-600 border-amber-200 bg-amber-50"
+                                                >
+                                                    <FileSignature className="h-3 w-3 mr-1" /> Gerar Termo
+                                                </Button>
+                                            </Link>
+                                        )}
+                                        <Button variant="ghost" size="icon"><MoreVertical size={16} /></Button>
+                                    </div>
                                 </TableCell>
                             </TableRow>
                         ))}
                     </TableBody>
                 </Table>
             </Card>
+
+            <Dialog open={!!selectedReport} onOpenChange={(open) => !open && setSelectedReport(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Relatório da Missão: {selectedReport?.numero}</DialogTitle>
+                    </DialogHeader>
+                    <div className="py-4">
+                        <div className="bg-slate-50 p-4 rounded-lg border text-sm text-slate-700 whitespace-pre-wrap">
+                            {selectedReport?.relatorio || 'Nenhum relatório enviado.'}
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button onClick={() => setSelectedReport(null)}>Fechar</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }

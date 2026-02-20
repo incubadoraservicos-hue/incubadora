@@ -25,7 +25,7 @@ import {
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Plus, Monitor, Box, MoreHorizontal } from 'lucide-react'
+import { Plus, Monitor, Box, Edit2, CheckCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 
@@ -42,6 +42,7 @@ export default function SistemasPage() {
         tipo_licenca: 'mensal',
         valor_base: '',
     })
+    const [editingId, setEditingId] = useState<string | null>(null)
 
     useEffect(() => {
         fetchSistemas()
@@ -59,19 +60,34 @@ export default function SistemasPage() {
         setLoading(false)
     }
 
-    const handleCreate = async (e: React.FormEvent) => {
+    const handleSave = async (e: React.FormEvent) => {
         e.preventDefault()
-        const { error } = await supabase.from('sistemas').insert([
-            { ...formData, valor_base: parseFloat(formData.valor_base) }
-        ])
+        const data = { ...formData, valor_base: parseFloat(formData.valor_base) }
+
+        const { error } = editingId
+            ? await supabase.from('sistemas').update(data).eq('id', editingId)
+            : await supabase.from('sistemas').insert([data])
 
         if (error) toast.error('Erro: ' + error.message)
         else {
-            toast.success('Sistema registado!')
+            toast.success(editingId ? 'Sistema actualizado!' : 'Sistema registado!')
             setIsNewOpen(false)
+            setEditingId(null)
             setFormData({ nome: '', descricao: '', versao: '1.0.0', tipo_licenca: 'mensal', valor_base: '' })
             fetchSistemas()
         }
+    }
+
+    const startEdit = (sistema: any) => {
+        setFormData({
+            nome: sistema.nome,
+            descricao: sistema.descricao || '',
+            versao: sistema.versao || '1.0.0',
+            tipo_licenca: sistema.tipo_licenca || 'mensal',
+            valor_base: sistema.valor_base.toString(),
+        })
+        setEditingId(sistema.id)
+        setIsNewOpen(true)
     }
 
     return (
@@ -87,9 +103,9 @@ export default function SistemasPage() {
                         <Button><Plus className="mr-2 h-4 w-4" /> Novo Sistema</Button>
                     </DialogTrigger>
                     <DialogContent className="sm:max-w-[500px]">
-                        <form onSubmit={handleCreate}>
+                        <form onSubmit={handleSave}>
                             <DialogHeader>
-                                <DialogTitle>Registar Novo Sistema</DialogTitle>
+                                <DialogTitle>{editingId ? 'Editar Sistema' : 'Registar Novo Sistema'}</DialogTitle>
                             </DialogHeader>
                             <div className="grid gap-4 py-4">
                                 <div className="grid gap-2">
@@ -139,10 +155,20 @@ export default function SistemasPage() {
                 ) : sistemas.length === 0 ? (
                     <p>Nenhum sistema cadastrado.</p>
                 ) : sistemas.map(sistema => (
-                    <Card key={sistema.id} className="border-none shadow-sm hover:shadow-md transition-shadow">
+                    <Card key={sistema.id} className="border-none shadow-sm hover:shadow-md transition-shadow relative group">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-lg font-bold">{sistema.nome}</CardTitle>
-                            <Monitor className="h-4 w-4 text-slate-400" />
+                            <div className="flex gap-2">
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    onClick={() => startEdit(sistema)}
+                                >
+                                    <Edit2 size={14} className="text-indigo-600" />
+                                </Button>
+                                <Monitor className="h-4 w-4 text-slate-400" />
+                            </div>
                         </CardHeader>
                         <CardContent>
                             <div className="text-xs text-slate-500 mb-2 truncate">{sistema.descricao}</div>

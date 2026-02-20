@@ -23,14 +23,16 @@ import {
     DialogTrigger
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import { Plus, UserCheck, ShieldCheck, Mail, Phone } from 'lucide-react'
+import { Plus, UserCheck, ShieldCheck, Mail, Phone, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
+import { createColaboradorAction, deleteColaboradorAction } from '@/app/actions/colaboradores'
 
 export default function ColaboradoresPage() {
     const [colaboradores, setColaboradores] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
+    const [isSaving, setIsSaving] = useState(false)
     const [isNewOpen, setIsNewOpen] = useState(false)
     const supabase = createClient()
 
@@ -60,58 +62,33 @@ export default function ColaboradoresPage() {
 
     const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault()
-        setLoading(true)
-        try {
-            const { data: colab, error } = await supabase
-                .from('colaboradores')
-                .insert([formData])
-                .select()
-                .single()
+        setIsSaving(true)
 
-            if (error) throw error
+        const result = await createColaboradorAction(formData)
 
-            toast.success('Colaborador registado!')
-
-            // Auto-create account with default password '123456'
-            // We use a temporary client to avoid logging out the Master
-            const { createBrowserClient } = await import('@supabase/ssr')
-            const tempSupabase = createBrowserClient(
-                process.env.NEXT_PUBLIC_SUPABASE_URL!,
-                process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-                { auth: { persistSession: false } }
-            )
-
-            const { data: authData, error: authError } = await tempSupabase.auth.signUp({
-                email: formData.email,
-                password: '123456', // Default password
-                options: {
-                    data: {
-                        role: 'colaborador',
-                        nome: formData.nome
-                    }
-                }
-            })
-
-            if (authError) {
-                console.error('Auth Error:', authError)
-                toast.warning('Colaborador criado, mas erro ao gerar conta: ' + authError.message)
-            } else if (authData.user) {
-                // Link user_id to colaborador
-                await supabase
-                    .from('colaboradores')
-                    .update({ user_id: authData.user.id })
-                    .eq('id', colab.id)
-
-                toast.success('Conta de acesso gerada automaticamente! Senha padrão: 123456')
+        if (result.success) {
+            toast.success('Colaborador registado e conta criada!')
+            if (result.isPlaceholder) {
+                toast.info('Lembre-se: Para acesso imediato sem confirmação de e-mail, configure a SERVICE_ROLE_KEY no .env.local', { duration: 6000 })
             }
-
             setIsNewOpen(false)
             setFormData({ nome: '', email: '', telefone: '', bi_passaporte: '', especialidades: [] })
             fetchColaboradores()
-        } catch (error: any) {
-            toast.error('Erro: ' + error.message)
-        } finally {
-            setLoading(false)
+        } else {
+            toast.error('Erro ao registar: ' + result.error)
+        }
+        setIsSaving(false)
+    }
+
+    const handleDelete = async (id: string, userId?: string) => {
+        if (!confirm('Tem a certeza que deseja remover este colaborador? Esta acção é irreversível.')) return
+
+        const result = await deleteColaboradorAction(id, userId)
+        if (result.success) {
+            toast.success('Colaborador removido com sucesso.')
+            fetchColaboradores()
+        } else {
+            toast.error('Erro ao remover: ' + result.error)
         }
     }
 
@@ -173,7 +150,9 @@ export default function ColaboradoresPage() {
                                 </div>
                             </div>
                             <DialogFooter>
-                                <Button type="submit">Guardar Colaborador</Button>
+                                <Button type="submit" disabled={isSaving}>
+                                    {isSaving ? 'A processar...' : 'Guardar Colaborador'}
+                                </Button>
                             </DialogFooter>
                         </form>
                     </DialogContent>
@@ -229,37 +208,12 @@ export default function ColaboradoresPage() {
                                     {new Intl.NumberFormat('pt-MZ', { style: 'currency', currency: 'MZN' }).format(colab.saldo_pendente || 0)}
                                 </TableCell>
                                 <TableCell className="text-right">
-                                    {!colab.user_id ? (
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="text-indigo-600 border-indigo-200 hover:bg-indigo-50"
-                                            onClick={async () => {
-                                                const { createBrowserClient } = await import('@supabase/ssr')
-                                                const tempSupabase = createBrowserClient(
-                                                    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-                                                    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-                                                    { auth: { persistSession: false } }
-                                                )
-                                                const { data, error } = await tempSupabase.auth.signUp({
-                                                    email: colab.email,
-                                                    password: '123456',
-                                                    options: { data: { role: 'colaborador', nome: colab.nome } }
-                                                })
-                                                if (error) toast.error('Erro ao gerar conta: ' + error.message)
-                                                else if (data.user) {
-                                                    await supabase.from('colaboradores').update({ user_id: data.user.id }).eq('id', colab.id)
-                                                    toast.success('Conta gerada! Senha: 123456')
-                                                    fetchColaboradores()
-                                                }
-                                            }}
-                                        >
-                                            Gerar Acesso
-                                        </Button>
-                                    ) : (
-                                        <Badge variant="secondary" className="bg-slate-100 text-slate-500">Activo</Badge>
-                                    )}
-                                    <Button variant="ghost" size="sm" className="ml-2">Ver Perfil</Button>
+                                    <Badge variant={colab.user_id ? "secondary" : "outline"} className={colab.user_id ? "bg-emerald-50 text-emerald-700 border-emerald-100" : "text-slate-400"}>
+                                        {colab.user_id ? 'Conta Activa' : 'Sem Acesso'}
+                                    </Badge>
+                                    <Button variant="ghost" size="icon" className="ml-2 text-slate-400 hover:text-red-600" onClick={() => handleDelete(colab.id, colab.user_id)}>
+                                        <Trash2 size={16} />
+                                    </Button>
                                 </TableCell>
                             </TableRow>
                         ))}

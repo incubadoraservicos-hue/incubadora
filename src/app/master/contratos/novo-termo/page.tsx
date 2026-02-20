@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -14,24 +14,66 @@ import { toast } from 'sonner'
 
 export default function NovoTermoPage() {
     const router = useRouter()
+    const searchParams = useSearchParams()
+    const osIdParam = searchParams.get('os_id')
     const supabase = createClient()
     const [colaboradores, setColaboradores] = useState<any[]>([])
+    const [ordensServico, setOrdensServico] = useState<any[]>([])
     const [loading, setLoading] = useState(false)
 
     const [formData, setFormData] = useState({
         colaborador_id: '',
+        ordem_servico_id: '',
+        cliente_id: '',
         descricao: '',
         valor: '',
         data_inicio: new Date().toISOString().split('T')[0],
     })
 
     useEffect(() => {
-        fetchColaboradores()
+        fetchData()
     }, [])
 
-    const fetchColaboradores = async () => {
-        const { data } = await supabase.from('colaboradores').select('id, nome').eq('estado', 'activo')
-        if (data) setColaboradores(data)
+    const fetchData = async () => {
+        const [colabRes, osRes] = await Promise.all([
+            supabase.from('colaboradores').select('id, nome').eq('estado', 'activo'),
+            supabase.from('ordens_servico').select('id, numero, descricao, valor, colaborador_id, cliente_id').order('created_at', { ascending: false })
+        ])
+
+        if (colabRes.data) setColaboradores(colabRes.data)
+
+        if (osRes.data) {
+            setOrdensServico(osRes.data)
+
+            // Auto-seleccionar se vier ID na URL
+            if (osIdParam) {
+                const os = osRes.data.find(o => o.id === osIdParam)
+                if (os) {
+                    setFormData(prev => ({
+                        ...prev,
+                        ordem_servico_id: os.id,
+                        colaborador_id: os.colaborador_id,
+                        cliente_id: os.cliente_id,
+                        descricao: os.descricao,
+                        valor: os.valor.toString()
+                    }))
+                }
+            }
+        }
+    }
+
+    const handleSelectOS = (osId: string) => {
+        const os = ordensServico.find(o => o.id === osId)
+        if (os) {
+            setFormData({
+                ...formData,
+                ordem_servico_id: osId,
+                colaborador_id: os.colaborador_id,
+                cliente_id: os.cliente_id,
+                descricao: os.descricao,
+                valor: os.valor.toString()
+            })
+        }
     }
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -44,6 +86,7 @@ export default function NovoTermoPage() {
             const { error } = await supabase.from('contratos').insert([{
                 ...formData,
                 valor: parseFloat(formData.valor),
+                ordem_servico_id: formData.ordem_servico_id === 'manual' ? null : formData.ordem_servico_id,
                 numero,
                 tipo: 'termo_compromisso',
                 estado: 'pendente'
@@ -75,18 +118,35 @@ export default function NovoTermoPage() {
                         <CardTitle className="text-lg">Dados do Acordo</CardTitle>
                     </CardHeader>
                     <CardContent className="grid gap-6">
-                        <div className="grid gap-2">
-                            <Label>Colaborador</Label>
-                            <Select onValueChange={v => setFormData({ ...formData, colaborador_id: v })} required>
-                                <SelectTrigger className="bg-slate-50">
-                                    <SelectValue placeholder="Seleccione o colaborador" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {colaboradores.map(c => (
-                                        <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="grid gap-2">
+                                <Label className="text-blue-600 font-bold">Vincular a uma Missão (OS)</Label>
+                                <Select onValueChange={handleSelectOS} value={formData.ordem_servico_id}>
+                                    <SelectTrigger className="bg-blue-50 border-blue-100">
+                                        <SelectValue placeholder="Escolha a missão..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="manual">Nenhuma (Manual)</SelectItem>
+                                        {ordensServico.map(o => (
+                                            <SelectItem key={o.id} value={o.id}>{o.numero} - {o.descricao.substring(0, 30)}...</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label>Colaborador</Label>
+                                <Select onValueChange={v => setFormData({ ...formData, colaborador_id: v })} value={formData.colaborador_id} required>
+                                    <SelectTrigger className="bg-slate-50">
+                                        <SelectValue placeholder="Seleccione o colaborador" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {colaboradores.map(c => (
+                                            <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
                         </div>
 
                         <div className="grid gap-2">

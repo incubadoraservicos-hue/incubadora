@@ -21,27 +21,48 @@ export default function MeusContratosPage() {
 
     const fetchContratos = async () => {
         setLoading(true)
-        const { data: { user } } = await supabase.auth.getUser()
+        const { data: { session } } = await supabase.auth.getSession()
+        const user = session?.user
 
-        if (user) {
-            const { data: colab } = await supabase.from('colaboradores').select('id, nome, nuit').eq('email', user.email).single()
-
-            if (colab) {
-                const { data, error } = await supabase
-                    .from('contratos')
-                    .select('*, colaboradores(*)')
-                    .eq('colaborador_id', colab.id)
-                    .eq('tipo', 'termo_compromisso')
-                    .order('created_at', { ascending: false })
-
-                if (error) toast.error('Erro ao carregar acordos')
-                else setContratos(data || [])
-            }
+        if (!user) {
+            console.error('Nenhuma sessão activa encontrada')
+            toast.error('Sessão expirada. Por favor, faça login novamente.')
+            setLoading(false)
+            return
         }
+
+        console.log('Utilizador Logado:', user.email, 'ID:', user.id)
+
+        // Tenta encontrar o colaborador por email ou pelo user_id do Auth
+        const { data: colab, error: colabError } = await supabase
+            .from('colaboradores')
+            .select('id, nome')
+            .or(`email.eq.${user.email},user_id.eq.${user.id}`)
+            .maybeSingle()
+
+        if (!colab) {
+            console.error('Colaborador não encontrado para:', user.email)
+            toast.error('Não foi possível encontrar o seu perfil de colaborador.')
+            setLoading(false)
+            return
+        }
+
+        const { data, error } = await supabase
+            .from('contratos')
+            .select('*, colaboradores(*)')
+            .eq('colaborador_id', colab.id)
+            .order('created_at', { ascending: false })
+
+        if (error) {
+            toast.error('Erro ao carregar acordos: ' + error.message)
+        } else {
+            setContratos(data || [])
+        }
+
         setLoading(false)
     }
 
-    const handleAction = async (id: string, action: 'activo' | 'rejeitado') => {
+    const handleAction = async (id: string, action: 'aceite' | 'rejeitado') => {
         const { error } = await supabase
             .from('contratos')
             .update({ estado: action })
@@ -49,7 +70,15 @@ export default function MeusContratosPage() {
 
         if (error) toast.error('Erro ao processar acção')
         else {
-            toast.success(action === 'activo' ? 'Acordo assinado com sucesso!' : 'Acordo rejeitado.')
+            toast.success(action === 'aceite' ? 'Acordo assinado com sucesso!' : 'Acordo rejeitado.')
+
+            // Se aceitou, mantém aberto para ele ver o selo e poder baixar/imprimir
+            // Senão, fecha.
+            if (action === 'rejeitado') setSelectedTermo(null)
+            else {
+                // Atualiza o estado do termo selecionado localmente para mostrar o selo
+                setSelectedTermo(prev => ({ ...prev, estado: 'aceite' }))
+            }
             fetchContratos()
         }
     }
@@ -59,17 +88,17 @@ export default function MeusContratosPage() {
     }
 
     return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between no-print">
+        <div className="space-y-6 pb-20">
+            <div className="flex items-center justify-between no-print px-4">
                 <div>
-                    <h2 className="text-3xl font-bold tracking-tight">Meus Acordos</h2>
-                    <p className="text-slate-500">Termos de compromisso e contratos de parceria.</p>
+                    <h2 className="text-3xl font-bold tracking-tight text-[#002B5B]">Meus Acordos</h2>
+                    <p className="text-slate-500 text-sm">Analise, aceite ou recuse os seus termos de compromisso.</p>
                 </div>
             </div>
 
-            <div className="grid gap-6 no-print">
+            <div className="grid gap-4 no-print px-4">
                 {loading ? (
-                    <p>Carregando...</p>
+                    <div className="py-20 text-center text-slate-400">Carregando acordos...</div>
                 ) : contratos.length === 0 ? (
                     <Card className="border-dashed border-2 flex items-center justify-center py-20 grayscale opacity-50">
                         <div className="text-center">
@@ -78,45 +107,31 @@ export default function MeusContratosPage() {
                         </div>
                     </Card>
                 ) : contratos.map(item => (
-                    <Card key={item.id} className="border-none shadow-sm overflow-hidden flex flex-col md:flex-row">
-                        <div className={`w-2 h-full ${item.estado === 'pendente' ? 'bg-amber-400' : item.estado === 'activo' ? 'bg-emerald-500' : 'bg-red-400'}`} />
-                        <div className="flex-1 p-6">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <span className="font-mono text-xs font-bold text-slate-400">{item.numero}</span>
-                                        {item.estado === 'pendente' && <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none">Pendente de Assinatura</Badge>}
-                                        {item.estado === 'activo' && <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-none">Assinado Digitalmente</Badge>}
+                    <Card key={item.id} className="border-none shadow-sm overflow-hidden flex flex-col md:flex-row hover:shadow-md transition-shadow cursor-pointer" onClick={() => setSelectedTermo(item)}>
+                        <div className={`w-2 h-full ${item.estado === 'pendente' ? 'bg-amber-400' : item.estado === 'aceite' ? 'bg-emerald-500' : 'bg-red-400'}`} />
+                        <div className="flex-1 p-5">
+                            <div className="flex justify-between items-center">
+                                <div className="space-y-1">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-mono text-[10px] font-bold text-slate-400">{item.numero}</span>
+                                        <Badge variant="outline" className={`text-[10px] border-none ${item.estado === 'pendente' ? 'bg-amber-50 text-amber-700' :
+                                                item.estado === 'aceite' ? 'bg-emerald-50 text-emerald-700' :
+                                                    'bg-red-50 text-red-700'
+                                            }`}>
+                                            {item.estado === 'pendente' ? 'Pendente de Assinatura' :
+                                                item.estado === 'aceite' ? 'Contrato Aceite' : 'Recusado'}
+                                        </Badge>
                                     </div>
-                                    <h3 className="text-lg font-bold text-slate-900 line-clamp-1">{item.descricao}</h3>
+                                    <h3 className="text-base font-bold text-slate-800 uppercase">{item.descricao}</h3>
+                                    <p className="text-[10px] text-slate-400">Recebido em: {new Date(item.created_at).toLocaleDateString()}</p>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-xs text-slate-400">Valor Acordado</p>
-                                    <p className="text-xl font-bold text-[#002B5B]">
+                                    <p className="text-lg font-black text-[#002B5B]">
                                         {new Intl.NumberFormat('pt-MZ', { style: 'currency', currency: 'MZN' }).format(item.valor)}
                                     </p>
-                                </div>
-                            </div>
-
-                            <div className="mt-6 flex justify-between items-center">
-                                <div className="text-xs text-slate-500">
-                                    Emitido em: {new Date(item.created_at).toLocaleDateString()}
-                                </div>
-                                <div className="flex gap-2">
-                                    {item.estado === 'pendente' ? (
-                                        <>
-                                            <Button variant="outline" className="text-red-600 hover:bg-red-50 border-red-100" onClick={() => handleAction(item.id, 'rejeitado')}>
-                                                <XCircle className="mr-2 h-4 w-4" /> Recusar
-                                            </Button>
-                                            <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={() => handleAction(item.id, 'activo')}>
-                                                <CheckCircle2 className="mr-2 h-4 w-4" /> Analisar e Assinar
-                                            </Button>
-                                        </>
-                                    ) : item.estado === 'activo' ? (
-                                        <Button variant="outline" onClick={() => setSelectedTermo(item)}>
-                                            <Download className="mr-2 h-4 w-4" /> Baixar Documento Assinado
-                                        </Button>
-                                    ) : null}
+                                    <Button variant="ghost" size="sm" className="h-7 text-[10px] text-indigo-600 mt-2">
+                                        Clique para Abrir
+                                    </Button>
                                 </div>
                             </div>
                         </div>
@@ -124,23 +139,47 @@ export default function MeusContratosPage() {
                 ))}
             </div>
 
-            {/* Document View For Printing/Download */}
+            {/* FULL SCREEN DOCUMENT VIEWER */}
             {selectedTermo && (
-                <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 overflow-y-auto print:p-0 print:bg-white no-print-backdrop">
-                    <div className="relative max-w-[850px] w-full">
-                        <div className="absolute -top-12 right-0 flex gap-4 no-print text-white">
-                            <Button variant="ghost" className="text-white hover:text-white hover:bg-white/10" onClick={() => setSelectedTermo(null)}>Fechar</Button>
-                            <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handlePrint}>
-                                <Download className="mr-2 h-4 w-4" /> Imprimir / PDF
+                <div className="fixed inset-0 z-[100] bg-slate-100 flex flex-col no-print-backdrop overflow-hidden">
+                    {/* FIXED HEADER WITH ACTIONS */}
+                    <div className="bg-white border-b px-6 py-4 flex items-center justify-between shadow-sm no-print">
+                        <div className="flex items-center gap-4">
+                            <Button variant="outline" onClick={() => setSelectedTermo(null)}>
+                                <XCircle className="mr-2 h-4 w-4" /> Fechar Visualizador
                             </Button>
+                            <div className="h-6 w-[1px] bg-slate-200 ml-2"></div>
+                            <span className="text-sm font-bold text-slate-600 hidden md:inline">Documento: {selectedTermo.numero}</span>
                         </div>
-                        <div className="bg-white rounded-lg shadow-2xl print:shadow-none">
+
+                        <div className="flex gap-2">
+                            {selectedTermo.estado === 'pendente' ? (
+                                <>
+                                    <Button variant="outline" className="text-red-600 border-red-200 hover:bg-red-50" onClick={() => handleAction(selectedTermo.id, 'rejeitado')}>
+                                        <XCircle className="mr-2 h-4 w-4" /> Recusar Acordo
+                                    </Button>
+                                    <Button className="bg-emerald-600 hover:bg-emerald-700 font-bold px-8" onClick={() => handleAction(selectedTermo.id, 'aceite')}>
+                                        <CheckCircle2 className="mr-2 h-4 w-4" /> Concordo e Assino Digitalmente
+                                    </Button>
+                                </>
+                            ) : (
+                                <Button className="bg-[#002B5B] hover:bg-slate-800" onClick={handlePrint}>
+                                    <Download className="mr-2 h-4 w-4" /> Salvar em PDF / Imprimir
+                                </Button>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* SCROLLABLE DOCUMENT AREA */}
+                    <div className="flex-1 overflow-y-auto p-4 md:p-12 flex justify-center bg-slate-100">
+                        <div className="bg-white shadow-2xl rounded-sm w-full max-w-[850px] print:shadow-none print:w-full print:max-w-none">
                             <TermoCompromissoDocument
+                                id={selectedTermo.id}
                                 colaborador={selectedTermo.colaboradores}
                                 descricao={selectedTermo.descricao}
                                 valor={selectedTermo.valor}
                                 data={selectedTermo.created_at}
-                                assinado={true}
+                                assinado={selectedTermo.estado === 'aceite'}
                             />
                         </div>
                     </div>

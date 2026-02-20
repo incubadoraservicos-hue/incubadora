@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Plus, FileText, Send, Download } from 'lucide-react'
+import { Plus, FileText, Send, Download, CheckCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { InvoiceDocument } from '@/components/InvoiceDocument'
@@ -42,6 +42,38 @@ export default function FacturasPage() {
 
     const handlePrint = () => {
         window.print()
+    }
+
+    const handleConfirmPayment = async (id: string) => {
+        if (!confirm('Deseja confirmar o recebimento desta factura?')) return
+
+        const factura = facturas.find(f => f.id === id)
+
+        const { error } = await supabase
+            .from('facturas')
+            .update({
+                estado: 'paga',
+                data_pagamento: new Date().toISOString().split('T')[0]
+            })
+            .eq('id', id)
+
+        if (error) {
+            toast.error('Erro ao confirmar: ' + error.message)
+        } else {
+            // Registo Manual de Transacção (Garar atualização do Dashboard Financeiro)
+            if (factura) {
+                await supabase.from('transacoes_master').insert({
+                    tipo: 'receita',
+                    categoria: 'factura',
+                    valor: factura.total,
+                    descricao: `Recebimento de Factura: ${factura.numero}`,
+                    referencia_id: factura.id
+                })
+            }
+
+            toast.success('Pagamento confirmado e saldo actualizado!')
+            fetchFacturas()
+        }
     }
 
     const getStatusBadge = (status: string) => {
@@ -128,6 +160,17 @@ export default function FacturasPage() {
                                 <TableCell>{getStatusBadge(factura.estado)}</TableCell>
                                 <TableCell className="text-right">
                                     <div className="flex justify-end gap-2">
+                                        {factura.estado !== 'paga' && (
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                title="Confirmar Pagamento"
+                                                className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                                                onClick={() => handleConfirmPayment(factura.id)}
+                                            >
+                                                <CheckCircle size={16} />
+                                            </Button>
+                                        )}
                                         <Button variant="ghost" size="icon" title="Ver PDF" onClick={() => setSelectedFactura(factura)}><FileText size={16} /></Button>
                                         <Button variant="ghost" size="icon" title="Enviar"><Send size={16} /></Button>
                                     </div>

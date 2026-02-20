@@ -21,6 +21,11 @@ export function NotificationCenter() {
     const [processingId, setProcessingId] = useState<string | null>(null)
     const [showSuccess, setShowSuccess] = useState(false)
     const [lastMsg, setLastMsg] = useState('')
+    const [mounted, setMounted] = useState(false)
+
+    useEffect(() => {
+        setMounted(true)
+    }, [])
 
     useEffect(() => {
         fetchNotifications()
@@ -70,6 +75,14 @@ export function NotificationCenter() {
             fetchNotifications()
         }
         setProcessingId(null)
+    }
+
+    if (!mounted) {
+        return (
+            <Button variant="ghost" size="icon" className="relative text-slate-400">
+                <Mail className="h-5 w-5" />
+            </Button>
+        )
     }
 
     return (

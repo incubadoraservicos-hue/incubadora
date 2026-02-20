@@ -1,9 +1,9 @@
-'use client'
-
 import React from 'react'
-import { CheckCircle2 } from 'lucide-react'
+import { CheckCircle2, ShieldCheck, Award } from 'lucide-react'
+import { QRCodeSVG } from 'qrcode.react'
 
 interface TermoProps {
+    id: string
     colaborador: any
     descricao: string
     valor: number
@@ -11,7 +11,7 @@ interface TermoProps {
     assinado?: boolean
 }
 
-export function TermoCompromissoDocument({ colaborador, descricao, valor, data, assinado }: TermoProps) {
+export function TermoCompromissoDocument({ id, colaborador, descricao, valor, data, assinado }: TermoProps) {
     return (
         <div id="termo-print" className="bg-white p-12 max-w-[800px] mx-auto text-slate-800 font-serif shadow-lg border leading-relaxed">
             <div className="text-center mb-10">
@@ -64,27 +64,58 @@ export function TermoCompromissoDocument({ colaborador, descricao, valor, data, 
                     <p className="text-[10px] text-slate-400">Contratante</p>
                 </div>
 
-                <div className="text-center w-64 relative">
+                <div className="text-center w-64 relative pt-10">
+                    <div className="border-t border-slate-400 w-full mb-2"></div>
                     {assinado ? (
-                        <div className="absolute -top-12 left-1/2 -translate-x-1/2 flex flex-col items-center">
-                            <span className="font-['Cursive',_cursive] text-2xl text-indigo-700 italic opacity-80 select-none">
+                        <div className="absolute -top-12 left-1/2 -translate-x-1/2 flex flex-col items-center w-full z-10">
+                            {/* O Selo Verde "Checked" */}
+                            <div className="relative">
+                                <div className="bg-emerald-500 text-white rounded-full p-2 shadow-lg scale-125 mb-2 rotate-12 border-4 border-white">
+                                    <CheckCircle2 size={32} strokeWidth={3} />
+                                </div>
+                                <div className="absolute -right-8 -top-2 bg-indigo-600 text-[8px] text-white px-2 py-0.5 rounded-full font-sans font-bold uppercase tracking-tighter shadow-sm">
+                                    Verificado
+                                </div>
+                            </div>
+
+                            <span className="font-['Cursive',_cursive] text-2xl text-indigo-800 italic opacity-90 select-none mt-2">
                                 {colaborador?.nome || 'Assinado'}
                             </span>
-                            <div className="flex items-center text-emerald-600 mt-1 font-bold font-sans uppercase text-[10px]">
-                                <CheckCircle2 size={12} className="mr-1" /> Aprovado Digitalmente
+                            <div className="flex flex-col items-center text-emerald-600 mt-1 font-bold font-sans uppercase text-[8px] tracking-widest">
+                                <div className="flex items-center gap-1">
+                                    <ShieldCheck size={10} /> Autenticidade Garantida
+                                </div>
+                                <p className="text-slate-400 mt-1 font-mono">HASH: {id?.substring(0, 8).toUpperCase()}</p>
                             </div>
-                            <p className="text-[8px] text-slate-400 font-sans mt-1">ID: {Math.random().toString(36).substr(2, 9).toUpperCase()}</p>
                         </div>
                     ) : (
-                        <div className="border-t border-slate-400 pt-2 h-10 w-full" />
+                        <div className="h-10 w-full flex items-center justify-center italic text-slate-300 text-xs">
+                            Aguardando assinatura digital...
+                        </div>
                     )}
                     <p className="font-bold mt-2">{colaborador?.nome || 'Prestador'}</p>
-                    <p className="text-[10px] text-slate-400">Assinatura do Prestador</p>
+                    <p className="text-[10px] text-slate-400 uppercase tracking-tighter">Assinatura Digital do Prestador</p>
                 </div>
             </div>
 
-            <div className="mt-16 text-[9px] text-slate-400 text-center uppercase tracking-widest border-t pt-8">
-                MAPUTO, MOÇAMBIQUE • {new Date().toLocaleDateString('pt-MZ', { day: '2-digit', month: 'long', year: 'numeric' })}
+            <div className="mt-16 pt-8 border-t border-slate-100 flex justify-between items-center">
+                <div className="text-left">
+                    <p className="text-[9px] text-slate-400 uppercase tracking-widest font-sans">Validação de Documento</p>
+                    <div className="flex items-center gap-3 mt-2">
+                        <QRCodeSVG
+                            value={`https://incubadora.co.mz/validar/${id}`}
+                            size={60}
+                            level="M"
+                            includeMargin={false}
+                        />
+                        <div className="text-[8px] text-slate-400 max-w-[200px] leading-tight font-sans">
+                            Aponte a câmara do telemóvel para o QR Code para verificar a autenticidade deste documento e a validade da assinatura digital.
+                        </div>
+                    </div>
+                </div>
+                <div className="text-[9px] text-slate-400 text-right uppercase tracking-widest font-sans">
+                    MAPUTO, MOÇAMBIQUE • {new Date().toLocaleDateString('pt-MZ', { day: '2-digit', month: 'long', year: 'numeric' })}
+                </div>
             </div>
         </div>
     )

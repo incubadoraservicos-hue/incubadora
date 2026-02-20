@@ -29,52 +29,87 @@ export default function DashboardPage() {
 
     useEffect(() => {
         fetchDashboardData()
+
+        // Sincronização em Tempo Real (Dashboard Vivo)
+        const channel = supabase
+            .channel('dashboard-sync')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'transacoes_master' }, () => fetchDashboardData())
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'facturas' }, () => fetchDashboardData())
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'ordens_servico' }, () => fetchDashboardData())
+            .subscribe()
+
+        return () => {
+            supabase.removeChannel(channel)
+        }
     }, [])
 
     const fetchDashboardData = async () => {
-        setLoading(true)
+        // Obter data de referência para o mês actual
         const now = new Date()
         const firstDayMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
 
-        const [facturas, clientes, os, trans] = await Promise.all([
-            supabase.from('facturas').select('total, estado'),
+        const [facturas, clientes, os] = await Promise.all([
+            supabase.from('facturas').select('total, estado, numero, data_pagamento'),
             supabase.from('clientes').select('id').eq('estado', 'activo'),
-            supabase.from('ordens_servico').select('id').eq('estado', 'em_execucao'),
-            supabase.from('transacoes_master')
-                .select('*')
-                .order('data_transacao', { ascending: false })
-                .limit(5)
+            supabase.from('ordens_servico').select('id, estado, valor_colaborador, numero, data_pagamento').eq('estado', 'em_execucao')
         ])
 
-        // Calculate Stats
-        const totalReceber = facturas.data?.filter(f => f.estado !== 'paga').reduce((acc, f) => acc + f.total, 0) || 0
+        // 1. Buscar transacções reais (Pagos)
+        const { data: facturasPagas } = await supabase.from('facturas').select('*').eq('estado', 'paga')
+        const { data: osPagas } = await supabase.from('ordens_servico').select('*').eq('estado', 'paga')
 
-        // Calculate Wallet from Transactions
-        const allTrans = await supabase.from('transacoes_master').select('valor, tipo, data_transacao')
+        const receitas = facturasPagas || []
+        const despesas = osPagas || []
+
+        // 2. Calcular Estatísticas
+        const totalReceber = facturas.data?.filter(f => f.estado !== 'paga').reduce((acc, f) => acc + f.total, 0) || 0
+        const osEmCurso = os.data?.length || 0
+
+        // 3. Calcular Saldo e Fluxo Mensal
         let totalSaldo = 0
         let recMes = 0
         let desMes = 0
 
-        allTrans.data?.forEach(t => {
-            const val = Number(t.valor)
-            if (t.tipo === 'receita') {
-                totalSaldo += val
-                if (t.data_transacao >= firstDayMonth) recMes += val
-            } else {
-                totalSaldo -= val
-                if (t.data_transacao >= firstDayMonth) desMes += val
-            }
+        receitas.forEach(f => {
+            totalSaldo += f.total
+            if (f.data_pagamento && f.data_pagamento >= firstDayMonth) recMes += f.total
         })
+
+        despesas.forEach(o => {
+            totalSaldo -= o.valor_colaborador
+            if (o.data_pagamento && o.data_pagamento >= firstDayMonth) desMes += o.valor_colaborador
+        })
+
+        // 4. Construir Histórico Recente (Mesclar os dois)
+        const histReceitas = receitas.map(f => ({
+            id: f.id,
+            tipo: 'receita',
+            descricao: `Factura ${f.numero}`,
+            data_transacao: f.data_pagamento,
+            valor: f.total
+        }))
+
+        const histDespesas = despesas.map(o => ({
+            id: o.id,
+            tipo: 'despesa',
+            descricao: `Pagamento OS-${o.numero}`,
+            data_transacao: o.data_pagamento,
+            valor: o.valor_colaborador
+        }))
+
+        const totalRecent = [...histReceitas, ...histDespesas]
+            .sort((a, b) => new Date(b.data_transacao).getTime() - new Date(a.data_transacao).getTime())
+            .slice(0, 5)
 
         setStats({
             totalReceber,
             clientesActivos: clientes.data?.length || 0,
-            osExecucao: os.data?.length || 0,
+            osExecucao: osEmCurso,
             saldoDisponivel: totalSaldo,
             receitaMes: recMes,
             despesaMes: desMes
         })
-        setRecentTrans(trans.data || [])
+        setRecentTrans(totalRecent)
         setLoading(false)
     }
 

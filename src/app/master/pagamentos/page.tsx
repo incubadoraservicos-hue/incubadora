@@ -33,14 +33,78 @@ export default function PagamentosPage() {
 
     const fetchSaldos = async () => {
         setLoading(true)
-        const { data, error } = await supabase
+
+        // 1. Buscar todos os colaboradores
+        const { data: colabs, error: colabError } = await supabase
             .from('colaboradores')
             .select('*')
-            .order('saldo_pendente', { ascending: false })
+            .order('nome')
 
-        if (error) toast.error('Erro ao carregar saldos')
-        else setColaboradores(data || [])
+        if (colabError) {
+            toast.error('Erro ao carregar colaboradores')
+            setLoading(false)
+            return
+        }
+
+        // 2. Buscar Ordens de Serviço CONCLUÍDAS (mas ainda não pagas pelo Master)
+        // Nota: O estado 'concluida' significa que o colaborador terminou, 
+        // mas o pagamento ainda não foi processado aqui.
+        const { data: osConcluidas, error: osError } = await supabase
+            .from('ordens_servico')
+            .select('colaborador_id, valor_colaborador')
+            .eq('estado', 'concluida')
+
+        if (osError) {
+            toast.error('Erro ao calcular saldos pendentes')
+        }
+
+        // 3. Mapear os saldos calculados em tempo real
+        const colabsComSaldo = (colabs || []).map(c => {
+            const totalOS = (osConcluidas || [])
+                .filter(os => os.colaborador_id === c.id)
+                .reduce((acc, curr) => acc + (Number(curr.valor_colaborador) || 0), 0)
+
+            return {
+                ...c,
+                saldo_pendente: totalOS // Usamos o cálculo em tempo real
+            }
+        })
+
+        setColaboradores(colabsComSaldo)
         setLoading(false)
+    }
+
+    const handleConfirmarPagamento = async (colabId: string) => {
+        const colab = colaboradores.find(c => c.id === colabId)
+        if (!colab || !colab.saldo_pendente) return
+
+        if (!confirm(`Confirmar o pagamento de ${new Intl.NumberFormat('pt-MZ').format(colab.saldo_pendente)} MT para ${colab.nome}?`)) return
+
+        // 1. Marcar OS como pagas
+        const { error } = await supabase
+            .from('ordens_servico')
+            .update({
+                estado: 'paga',
+                data_pagamento: new Date().toISOString()
+            })
+            .eq('colaborador_id', colabId)
+            .eq('estado', 'concluida')
+
+        if (error) {
+            toast.error('Erro ao processar pagamento: ' + error.message)
+        } else {
+            // 2. Registo no Dashboard Financeiro (Saída de Caixa)
+            await supabase.from('transacoes_master').insert({
+                tipo: 'despesa',
+                categoria: 'pagamento_colaborador',
+                valor: colab.saldo_pendente,
+                descricao: `Liquidação de Saldo: ${colab.nome}`,
+                referencia_id: colabId
+            })
+
+            toast.success('Pagamento confirmado e caixa actualizado!')
+            fetchSaldos()
+        }
     }
 
     return (
@@ -102,6 +166,7 @@ export default function PagamentosPage() {
                                         size="sm"
                                         className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50"
                                         disabled={!colab.saldo_pendente || colab.saldo_pendente <= 0}
+                                        onClick={() => handleConfirmarPagamento(colab.id)}
                                     >
                                         Confirmar Pagamento
                                     </Button>

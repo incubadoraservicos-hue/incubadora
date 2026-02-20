@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Plus, FileSignature, Clock, CheckCircle2, XCircle } from 'lucide-react'
+import { Plus, FileSignature, Clock, CheckCircle2, XCircle, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import {
     Table,
@@ -15,12 +15,15 @@ import {
     TableRow
 } from '@/components/ui/table'
 import { toast } from 'sonner'
+import { TermoCompromissoDocument } from '@/components/TermoCompromissoDocument'
+import { Download } from 'lucide-react'
 
 import Link from 'next/link'
 
 export default function ContratosPage() {
     const [contratos, setContratos] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
+    const [selectedTermo, setSelectedTermo] = useState<any>(null)
     const supabase = createClient()
 
     useEffect(() => {
@@ -31,12 +34,31 @@ export default function ContratosPage() {
         setLoading(true)
         const { data, error } = await supabase
             .from('contratos')
-            .select('*, clientes(nome), colaboradores(nome)')
+            .select('*, clientes(nome), colaboradores(*)')
             .order('created_at', { ascending: false })
 
         if (error) toast.error('Erro ao carregar contratos')
         else setContratos(data || [])
         setLoading(false)
+    }
+
+    const handlePrint = () => {
+        window.print()
+    }
+
+    const handleDelete = async (id: string) => {
+        if (!confirm('Tem a certeza que deseja APAGAR este contrato? Esta acção não pode ser desfeita.')) return
+
+        const { error } = await supabase
+            .from('contratos')
+            .delete()
+            .eq('id', id)
+
+        if (error) toast.error('Erro ao apagar: ' + error.message)
+        else {
+            toast.success('Contrato apagado com sucesso!')
+            fetchContratos()
+        }
     }
 
     const getTipoBadge = (tipo: string) => {
@@ -106,13 +128,63 @@ export default function ContratosPage() {
                                     )}
                                 </TableCell>
                                 <TableCell className="text-right">
-                                    <Button variant="ghost" size="sm">Download</Button>
+                                    <div className="flex justify-end gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-8 text-[10px]"
+                                            onClick={() => setSelectedTermo(contrato)}
+                                        >
+                                            Ver Documento
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="text-red-400 hover:text-red-600 hover:bg-red-50"
+                                            onClick={() => handleDelete(contrato.id)}
+                                        >
+                                            <Trash2 size={16} />
+                                        </Button>
+                                    </div>
                                 </TableCell>
                             </TableRow>
                         ))}
                     </TableBody>
                 </Table>
             </Card>
+
+            {/* Document View For Printing/Download */}
+            {selectedTermo && (
+                <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 overflow-y-auto print:p-0 print:bg-white no-print-backdrop">
+                    <div className="relative max-w-[850px] w-full my-8">
+                        <div className="absolute -top-12 right-0 flex gap-4 no-print text-white">
+                            <Button variant="ghost" className="text-white hover:text-white hover:bg-white/10" onClick={() => setSelectedTermo(null)}>Fechar</Button>
+                            <Button className="bg-emerald-600 hover:bg-emerald-700 font-bold" onClick={handlePrint}>
+                                <Download className="mr-2 h-4 w-4" /> Imprimir / Salvar PDF
+                            </Button>
+                        </div>
+                        <div className="bg-white rounded-lg shadow-2xl print:shadow-none overflow-hidden">
+                            <TermoCompromissoDocument
+                                id={selectedTermo.id}
+                                colaborador={selectedTermo.colaboradores}
+                                descricao={selectedTermo.descricao}
+                                valor={selectedTermo.valor}
+                                data={selectedTermo.created_at}
+                                assinado={selectedTermo.estado === 'activo'}
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <style jsx global>{`
+                @media print {
+                  body * { visibility: hidden; }
+                  #termo-print, #termo-print * { visibility: visible; }
+                  #termo-print { position: absolute; left: 0; top: 0; width: 100%; border: none; shadow: none; }
+                  .no-print { display: none !important; }
+                }
+            `}</style>
         </div>
     )
 }
