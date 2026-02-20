@@ -48,6 +48,7 @@ export function Sidebar() {
                             src="/logo.png"
                             alt="Logo"
                             fill
+                            sizes="200px"
                             className="object-contain object-left"
                             priority
                         />

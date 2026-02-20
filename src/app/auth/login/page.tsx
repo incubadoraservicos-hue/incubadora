@@ -55,6 +55,7 @@ export default function LoginPage() {
                     src="/landing.png"
                     alt="Background"
                     fill
+                    sizes="100vw"
                     className="object-cover"
                     priority
                 />
@@ -69,6 +70,7 @@ export default function LoginPage() {
                                 src="/logo.png"
                                 alt="Incubadora de Soluções"
                                 fill
+                                sizes="(max-width: 768px) 100vw, 224px"
                                 className="object-contain"
                                 priority
                             />
