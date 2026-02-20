@@ -9,7 +9,8 @@ import {
     Files,
     FileSignature,
     Settings,
-    LogOut
+    LogOut,
+    X
 } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import Image from 'next/image'
@@ -22,7 +23,12 @@ const menuItems = [
     { icon: Settings, label: 'Configurações', href: '/colaborador/configuracoes' },
 ]
 
-export function CollaboratorSidebar() {
+interface CollaboratorSidebarProps {
+    isOpen?: boolean
+    onClose?: () => void
+}
+
+export function CollaboratorSidebar({ isOpen, onClose }: CollaboratorSidebarProps) {
     const pathname = usePathname()
     const supabase = createClient()
 
@@ -32,20 +38,26 @@ export function CollaboratorSidebar() {
     }
 
     return (
-        <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r bg-white">
+        <aside className={cn(
+            "fixed left-0 top-0 z-50 h-screen w-64 border-r bg-white transition-transform lg:translate-x-0",
+            isOpen ? "translate-x-0" : "-translate-x-full"
+        )}>
             <div className="flex h-full flex-col px-3 py-4">
-                <div className="mb-10 flex items-center px-4 py-2">
-                    <div className="relative h-12 w-full">
+                <div className="mb-10 flex items-center justify-between px-4 py-2">
+                    <div className="relative h-10 w-32">
                         <Image
                             src="/logo.png"
                             alt="Logo"
                             fill
-                            sizes="200px"
+                            sizes="150px"
                             className="object-contain object-left"
                             unoptimized
                             priority
                         />
                     </div>
+                    <button onClick={onClose} className="lg:hidden p-2 text-slate-500">
+                        <X size={20} />
+                    </button>
                 </div>
 
                 <nav className="flex-1 space-y-1">
@@ -53,10 +65,11 @@ export function CollaboratorSidebar() {
                         <Link
                             key={item.href}
                             href={item.href}
+                            onClick={() => onClose?.()}
                             className={cn(
                                 "flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                                 pathname === item.href
-                                    ? "bg-primary text-white"
+                                    ? "bg-primary text-white shadow-md shadow-primary/20"
                                     : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                             )}
                         >
