@@ -6,12 +6,12 @@ export default async function Home() {
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
-    redirect('/login')
+    redirect('/auth/login')
   }
 
   const role = user.user_metadata?.role
 
-  if (role === 'master') {
+  if (role === 'master' || user.email === 'incubadoraservicos@gmail.com') {
     redirect('/master/dashboard')
   } else {
     redirect('/colaborador/minhas-os')

@@ -31,10 +31,10 @@ export default function LoginPage() {
 
             const role = data.user?.user_metadata?.role
 
-            if (role === 'master') {
+            if (role === 'master' || data.user?.email === 'incubadoraservicos@gmail.com') {
                 router.push('/master/dashboard')
             } else {
-                router.push('/colaborador/painel')
+                router.push('/colaborador/minhas-os')
             }
 
             toast.success('Sessão iniciada com sucesso!')
