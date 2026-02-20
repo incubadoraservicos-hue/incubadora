@@ -16,6 +16,8 @@ import {
 } from '@/components/ui/table'
 import { toast } from 'sonner'
 
+import Link from 'next/link'
+
 export default function ContratosPage() {
     const [contratos, setContratos] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
@@ -40,6 +42,7 @@ export default function ContratosPage() {
     const getTipoBadge = (tipo: string) => {
         switch (tipo) {
             case 'fornecedor_cliente': return <Badge variant="secondary">Cliente</Badge>
+            case 'termo_compromisso': return <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none">Termo de Comp.</Badge>
             case 'incubadora_prestador': return <Badge variant="outline">Prestador</Badge>
             default: return <Badge variant="outline">Compromisso</Badge>
         }
@@ -49,12 +52,19 @@ export default function ContratosPage() {
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-3xl font-bold tracking-tight">Contratos</h2>
+                    <h2 className="text-3xl font-bold tracking-tight">Contratos & Acordos</h2>
                     <p className="text-slate-500">Gestão de acordos legais e compromissos de trabalho.</p>
                 </div>
-                <Button className="bg-primary">
-                    <Plus className="mr-2 h-4 w-4" /> Novo Contrato
-                </Button>
+                <div className="flex gap-2">
+                    <Link href="/master/contratos/novo-termo">
+                        <Button variant="outline" className="border-amber-200 text-amber-700 hover:bg-amber-50">
+                            <FileSignature className="mr-2 h-4 w-4" /> Novo Termo de Comp.
+                        </Button>
+                    </Link>
+                    <Button className="bg-primary">
+                        <Plus className="mr-2 h-4 w-4" /> Novo Contrato
+                    </Button>
+                </div>
             </div>
 
             <Card className="border-none shadow-sm overflow-hidden bg-white">

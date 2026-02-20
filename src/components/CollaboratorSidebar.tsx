@@ -7,12 +7,14 @@ import {
     ClipboardList,
     Wallet,
     Files,
+    FileSignature,
     LogOut
 } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 
 const menuItems = [
-    { icon: ClipboardList, label: 'Minhas OS', href: '/colaborador/minhas-os' },
+    { icon: ClipboardList, label: 'Minhas Missões', href: '/colaborador/minhas-os' },
+    { icon: FileSignature, label: 'Meus Acordos', href: '/colaborador/meus-contratos' },
     { icon: Wallet, label: 'Meu Saldo', href: '/colaborador/meu-saldo' },
     { icon: Files, label: 'Meus Documentos', href: '/colaborador/meus-documentos' },
 ]
