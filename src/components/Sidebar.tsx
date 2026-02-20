@@ -22,12 +22,14 @@ const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', href: '/master/dashboard' },
     { icon: Users, label: 'Clientes', href: '/master/clientes' },
     { icon: Monitor, label: 'Sistemas SaaS', href: '/master/sistemas' },
+    { icon: Tags, label: 'Outros Serviços', href: '/master/servicos' },
     { icon: FileText, label: 'Facturação', href: '/master/facturas' },
     { icon: FileSignature, label: 'Contratos', href: '/master/contratos' },
     { icon: UserRound, label: 'Colaboradores', href: '/master/colaboradores' },
     { icon: ClipboardList, label: 'Ordens de Serviço', href: '/master/ordens-servico' },
     { icon: CreditCard, label: 'Saldos & Pagamentos', href: '/master/pagamentos' },
     { icon: FolderOpen, label: 'Documentos', href: '/master/documentos' },
+    { icon: BarChart3, label: 'Relatórios', href: '/master/relatorios' },
 ]
 
 export function Sidebar() {
@@ -50,6 +52,7 @@ export function Sidebar() {
                             fill
                             sizes="200px"
                             className="object-contain object-left"
+                            unoptimized
                             priority
                         />
                     </div>

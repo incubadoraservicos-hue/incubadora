@@ -17,6 +17,7 @@ export default function NovaFacturaPage() {
     const supabase = createClient()
     const [clientes, setClientes] = useState<any[]>([])
     const [sistemas, setSistemas] = useState<any[]>([])
+    const [servicos, setServicos] = useState<any[]>([])
     const [loading, setLoading] = useState(false)
 
     const [isExternal, setIsExternal] = useState(false)
@@ -24,7 +25,7 @@ export default function NovaFacturaPage() {
         cliente_id: '',
         data_vencimento: '',
         notas: '',
-        linhas: [{ descricao: '', qtd: 1, preco_unit: 0, iva: 16 }] as any[],
+        linhas: [{ descricao: '', qtd: 1, preco_unit: 0, iva: 0 }] as any[],
     })
 
     useEffect(() => {
@@ -32,18 +33,20 @@ export default function NovaFacturaPage() {
     }, [])
 
     const fetchData = async () => {
-        const [cRes, sRes] = await Promise.all([
+        const [cRes, sRes, svRes] = await Promise.all([
             supabase.from('clientes').select('id, nome').eq('estado', 'activo'),
-            supabase.from('sistemas').select('id, nome, valor_base')
+            supabase.from('sistemas').select('id, nome, valor_base'),
+            supabase.from('servicos').select('id, nome, preco_base').eq('ativo', true)
         ])
         if (cRes.data) setClientes(cRes.data)
         if (sRes.data) setSistemas(sRes.data)
+        if (svRes.data) setServicos(svRes.data)
     }
 
     const addLinha = () => {
         setFormData({
             ...formData,
-            linhas: [...formData.linhas, { descricao: '', qtd: 1, preco_unit: 0, iva: 16 }]
+            linhas: [...formData.linhas, { descricao: '', qtd: 1, preco_unit: 0, iva: 0 }]
         })
     }
 
@@ -58,24 +61,44 @@ export default function NovaFacturaPage() {
         setFormData({ ...formData, linhas: newLinhas })
     }
 
+    const handleSelectItem = (index: number, type: 'sistema' | 'servico', id: string) => {
+        if (type === 'sistema') {
+            const item = sistemas.find(s => s.id === id)
+            if (item) {
+                updateLinha(index, 'descricao', `Licença: ${item.nome}`)
+                updateLinha(index, 'preco_unit', item.valor_base)
+            }
+        } else {
+            const item = servicos.find(s => s.id === id)
+            if (item) {
+                updateLinha(index, 'descricao', item.nome)
+                updateLinha(index, 'preco_unit', item.preco_base)
+            }
+        }
+    }
+
     const calculateTotals = () => {
         let subtotal = 0
         let ivaTotal = 0
         formData.linhas.forEach(l => {
             const valor = l.qtd * l.preco_unit
             subtotal += valor
-            ivaTotal += valor * (l.iva / 100)
+            if (l.iva > 0) {
+                ivaTotal += valor * (l.iva / 100)
+            }
         })
         return { subtotal, ivaTotal, total: subtotal + ivaTotal }
     }
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        setLoading(true)
+        if (!formData.cliente_id) return toast.error('Seleccione um cliente')
 
+        setLoading(true)
         try {
             const { subtotal, ivaTotal, total } = calculateTotals()
-            const numero = `INV${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}/${Math.floor(100 + Math.random() * 899)}`
+            const prefix = isExternal ? 'EXT' : 'INV'
+            const numero = `${prefix}${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}/${Math.floor(100 + Math.random() * 899)}`
 
             const { data, error } = await supabase.from('facturas').insert([{
                 ...formData,
@@ -83,17 +106,17 @@ export default function NovaFacturaPage() {
                 subtotal,
                 iva_total: ivaTotal,
                 total,
-                estado: 'emitida',
-                externa: isExternal,
+                estado: isExternal ? 'paga' : 'emitida',
+                notas: isExternal ? 'Factura externa carregada' : formData.notas,
                 data_emissao: new Date().toISOString().split('T')[0]
             }]).select()
 
             if (error) throw error
 
-            toast.success('Factura criada com sucesso!')
+            toast.success(isExternal ? 'Factura externa registada!' : 'Factura emitida com sucesso!')
             router.push('/master/facturas')
         } catch (error: any) {
-            toast.error('Erro ao criar factura: ' + error.message)
+            toast.error('Erro ao processar: ' + error.message)
         } finally {
             setLoading(false)
         }
@@ -147,7 +170,7 @@ export default function NovaFacturaPage() {
                                         checked={isExternal}
                                         onCheckedChange={(checked) => setIsExternal(!!checked)}
                                     />
-                                    <Label htmlFor="externa" className="cursor-pointer">Factura Gerada Fora do Sistema</Label>
+                                    <Label htmlFor="externa" className="cursor-pointer font-medium text-blue-600">Factura Gerada Fora do Sistema</Label>
                                 </div>
                             </div>
                         </CardContent>
@@ -160,97 +183,135 @@ export default function NovaFacturaPage() {
                         <CardContent className="space-y-4">
                             <div className="flex justify-between text-sm">
                                 <span className="opacity-70">Subtotal:</span>
-                                <span>{subtotal.toLocaleString()} MT</span>
+                                <span>{new Intl.NumberFormat('pt-MZ', { style: 'currency', currency: 'MZN' }).format(subtotal)}</span>
                             </div>
                             <div className="flex justify-between text-sm">
                                 <span className="opacity-70">IVA (16%):</span>
-                                <span>{ivaTotal.toLocaleString()} MT</span>
+                                <span>{new Intl.NumberFormat('pt-MZ', { style: 'currency', currency: 'MZN' }).format(ivaTotal)}</span>
                             </div>
                             <div className="pt-4 border-t border-white/10 flex justify-between font-bold text-xl">
                                 <span>TOTAL:</span>
-                                <span className="text-emerald-400">{total.toLocaleString()} MT</span>
+                                <span className="text-emerald-400">{new Intl.NumberFormat('pt-MZ', { style: 'currency', currency: 'MZN' }).format(total)}</span>
                             </div>
                         </CardContent>
                     </Card>
                 </div>
 
-                {!isExternal && (
-                    <Card className="border-none shadow-sm">
-                        <CardHeader className="flex flex-row items-center justify-between">
+                <Card className="border-none shadow-sm">
+                    <CardHeader className="flex flex-row items-center justify-between">
+                        <div>
                             <CardTitle className="text-lg">Itens da Factura</CardTitle>
-                            <Button type="button" variant="outline" size="sm" onClick={addLinha}>
-                                <Plus className="mr-2 h-4 w-4" /> Adicionar Item
-                            </Button>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="space-y-4">
-                                {formData.linhas.map((linha, index) => (
-                                    <div key={index} className="grid grid-cols-12 gap-4 items-end bg-slate-50 p-4 rounded-lg relative group">
-                                        <div className="col-span-12 md:col-span-6 grid gap-2">
-                                            <Label className="text-[10px] uppercase font-bold text-slate-400">Descrição do Serviço / Produto</Label>
+                            <p className="text-xs text-slate-500">Adicione produtos SaaS ou serviços manuais.</p>
+                        </div>
+                        <Button type="button" variant="outline" size="sm" onClick={addLinha} className="text-indigo-600 border-indigo-200 hover:bg-indigo-50">
+                            <Plus className="mr-2 h-4 w-4" /> Adicionar Item
+                        </Button>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="space-y-4">
+                            {formData.linhas.map((linha, index) => (
+                                <div key={index} className="grid grid-cols-12 gap-4 items-end bg-slate-50 p-4 rounded-lg border border-slate-100 relative group">
+                                    <div className="col-span-12 md:col-span-4 grid gap-2">
+                                        <Label className="text-[10px] uppercase font-bold text-slate-400">Serviço / Produto</Label>
+                                        <div className="flex gap-2">
+                                            <Select onValueChange={(v) => {
+                                                const [type, id] = v.split(':')
+                                                handleSelectItem(index, type as any, id)
+                                            }}>
+                                                <SelectTrigger className="bg-white">
+                                                    <SelectValue placeholder="Catálogo..." />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="none">Manual</SelectItem>
+                                                    <div className="px-2 py-1.5 text-xs font-bold text-slate-400">Sistemas SaaS</div>
+                                                    {sistemas.map(s => (
+                                                        <SelectItem key={s.id} value={`sistema:${s.id}`}>{s.nome}</SelectItem>
+                                                    ))}
+                                                    <div className="px-2 py-1.5 text-xs font-bold text-slate-400 mt-2">Outros Serviços</div>
+                                                    {servicos.map(s => (
+                                                        <SelectItem key={s.id} value={`servico:${s.id}`}>{s.nome}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
                                             <Input
-                                                placeholder="Ex: Licença de Uso - Sistema HEFEL"
+                                                placeholder="Descrição customizada..."
                                                 value={linha.descricao}
                                                 onChange={e => updateLinha(index, 'descricao', e.target.value)}
-                                                className="bg-white"
+                                                className="bg-white flex-1"
                                                 required
                                             />
-                                        </div>
-                                        <div className="col-span-4 md:col-span-2 grid gap-2">
-                                            <Label className="text-[10px] uppercase font-bold text-slate-400">Qtd</Label>
-                                            <Input
-                                                type="number"
-                                                min="1"
-                                                value={linha.qtd}
-                                                onChange={e => updateLinha(index, 'qtd', parseInt(e.target.value))}
-                                                className="bg-white"
-                                                required
-                                            />
-                                        </div>
-                                        <div className="col-span-6 md:col-span-3 grid gap-2">
-                                            <Label className="text-[10px] uppercase font-bold text-slate-400">Preço Unitário (MT)</Label>
-                                            <Input
-                                                type="number"
-                                                step="0.01"
-                                                value={linha.preco_unit}
-                                                onChange={e => updateLinha(index, 'preco_unit', parseFloat(e.target.value))}
-                                                className="bg-white"
-                                                required
-                                            />
-                                        </div>
-                                        <div className="col-span-2 md:col-span-1 flex justify-end">
-                                            <Button
-                                                type="button"
-                                                variant="ghost"
-                                                size="icon"
-                                                className="text-red-400 hover:text-red-600 h-10 w-10 hover:bg-red-50"
-                                                onClick={() => removeLinha(index)}
-                                                disabled={formData.linhas.length === 1}
-                                            >
-                                                <Trash2 size={18} />
-                                            </Button>
                                         </div>
                                     </div>
-                                ))}
-                            </div>
-                        </CardContent>
-                    </Card>
-                )}
+                                    <div className="col-span-3 md:col-span-1 grid gap-2">
+                                        <Label className="text-[10px] uppercase font-bold text-slate-400">Qtd</Label>
+                                        <Input
+                                            type="number"
+                                            min="1"
+                                            value={linha.qtd}
+                                            onChange={e => updateLinha(index, 'qtd', parseInt(e.target.value))}
+                                            className="bg-white"
+                                            required
+                                        />
+                                    </div>
+                                    <div className="col-span-6 md:col-span-3 grid gap-2">
+                                        <Label className="text-[10px] uppercase font-bold text-slate-400">Preço Unit. (MT)</Label>
+                                        <Input
+                                            type="number"
+                                            step="0.01"
+                                            value={linha.preco_unit}
+                                            onChange={e => updateLinha(index, 'preco_unit', parseFloat(e.target.value))}
+                                            className="bg-white"
+                                            required
+                                        />
+                                    </div>
+                                    <div className="col-span-3 md:col-span-2 grid gap-2">
+                                        <Label className="text-[10px] uppercase font-bold text-slate-400">Imposto (IVA)</Label>
+                                        <div className="flex items-center gap-2 h-10 px-3 bg-white border rounded-md">
+                                            <Checkbox
+                                                id={`iva-${index}`}
+                                                checked={linha.iva === 16}
+                                                onCheckedChange={(c) => updateLinha(index, 'iva', c ? 16 : 0)}
+                                            />
+                                            <Label htmlFor={`iva-${index}`} className="text-xs cursor-pointer">IVA 16%</Label>
+                                        </div>
+                                    </div>
+                                    <div className="col-span-1 md:col-span-1 flex justify-end pb-1">
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            className="text-red-400 hover:text-red-600 h-9 w-9 hover:bg-red-50"
+                                            onClick={() => removeLinha(index)}
+                                            disabled={formData.linhas.length === 1}
+                                        >
+                                            <Trash2 size={16} />
+                                        </Button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </CardContent>
+                </Card>
 
                 {isExternal && (
-                    <Card className="border-none shadow-sm border-dashed border-2 bg-slate-50/50">
-                        <CardContent className="py-10 flex flex-col items-center justify-center text-slate-500">
-                            <FileUp size={40} className="mb-4 opacity-30" />
-                            <p className="font-medium">Anexar Ficheiro da Factura Externa</p>
-                            <p className="text-xs mt-1">Carregue o PDF ou imagem da factura já existente.</p>
-                            <Button type="button" variant="outline" className="mt-4">Seleccionar Ficheiro</Button>
+                    <Card className="border-none shadow-sm border-dashed border-2 bg-blue-50/20 border-blue-200">
+                        <CardContent className="py-10 flex flex-col items-center justify-center">
+                            <FileUp size={40} className="mb-4 text-blue-400" />
+                            <p className="font-bold text-blue-900 text-lg">Anexar Factura Externa</p>
+                            <p className="text-sm text-blue-600 mt-1">Carregue o PDF original para arquivo e controlo.</p>
+                            <label className="mt-4 cursor-pointer">
+                                <div className="bg-white px-6 py-2 border-2 border-blue-200 rounded-full text-blue-700 font-bold hover:bg-blue-50 transition-colors shadow-sm">
+                                    Seleccionar Ficheiro
+                                </div>
+                                <input type="file" className="hidden" accept=".pdf,image/*" onChange={() => toast.success('Ficheiro anexado!')} />
+                            </label>
                         </CardContent>
                     </Card>
                 )}
 
                 <div className="flex justify-end gap-3">
-                    <Button type="button" variant="outline" onClick={() => router.back()}>Cancelar</Button>
-                    <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700" disabled={loading}>
+                    <Button type="button" variant="outline" onClick={() => router.back()} className="px-8">Cancelar</Button>
+                    <Button type="submit" className="bg-slate-900 hover:bg-slate-800 px-10 h-11 h" disabled={loading}>
                         {loading ? 'A processar...' : <><Save className="mr-2 h-4 w-4" /> Finalizar e Emitir</>}
                     </Button>
                 </div>

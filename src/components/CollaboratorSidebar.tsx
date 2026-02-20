@@ -42,6 +42,7 @@ export function CollaboratorSidebar() {
                             fill
                             sizes="200px"
                             className="object-contain object-left"
+                            unoptimized
                             priority
                         />
                     </div>

@@ -50,16 +50,19 @@ export default function LoginPage() {
     return (
         <div className="relative flex min-h-screen items-center justify-center p-4 overflow-hidden">
             {/* Background Image with Overlay */}
-            <div className="absolute inset-0 z-0">
-                <Image
-                    src="/landing.png"
-                    alt="Background"
-                    fill
-                    sizes="100vw"
-                    className="object-cover"
-                    priority
-                />
-                <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-[1px]" />
+            <div className="absolute inset-0 z-0 bg-slate-900 flex items-center justify-center">
+                <div className="relative w-full h-full max-w-[1200px] max-h-[800px] opacity-40">
+                    <Image
+                        src="/landing.png"
+                        alt="Background"
+                        fill
+                        sizes="100vw"
+                        className="object-contain"
+                        unoptimized
+                        priority
+                    />
+                </div>
+                <div className="absolute inset-0 bg-gradient-to-br from-slate-900/40 via-transparent to-slate-900/40 backdrop-blur-[2px]" />
             </div>
 
             <Card className="relative z-10 w-full max-w-md border-none shadow-2xl bg-white/95 backdrop-blur-md">
@@ -72,6 +75,7 @@ export default function LoginPage() {
                                 fill
                                 sizes="(max-width: 768px) 100vw, 224px"
                                 className="object-contain"
+                                unoptimized
                                 priority
                             />
                         </div>
