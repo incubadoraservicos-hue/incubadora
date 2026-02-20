@@ -60,13 +60,58 @@ export default function ColaboradoresPage() {
 
     const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault()
-        const { error } = await supabase.from('colaboradores').insert([formData])
-        if (error) toast.error('Erro: ' + error.message)
-        else {
+        setLoading(true)
+        try {
+            const { data: colab, error } = await supabase
+                .from('colaboradores')
+                .insert([formData])
+                .select()
+                .single()
+
+            if (error) throw error
+
             toast.success('Colaborador registado!')
+
+            // Auto-create account with default password '123456'
+            // We use a temporary client to avoid logging out the Master
+            const { createBrowserClient } = await import('@supabase/ssr')
+            const tempSupabase = createBrowserClient(
+                process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+                { auth: { persistSession: false } }
+            )
+
+            const { data: authData, error: authError } = await tempSupabase.auth.signUp({
+                email: formData.email,
+                password: '123456', // Default password
+                options: {
+                    data: {
+                        role: 'colaborador',
+                        nome: formData.nome
+                    }
+                }
+            })
+
+            if (authError) {
+                console.error('Auth Error:', authError)
+                toast.warning('Colaborador criado, mas erro ao gerar conta: ' + authError.message)
+            } else if (authData.user) {
+                // Link user_id to colaborador
+                await supabase
+                    .from('colaboradores')
+                    .update({ user_id: authData.user.id })
+                    .eq('id', colab.id)
+
+                toast.success('Conta de acesso gerada automaticamente! Senha padrão: 123456')
+            }
+
             setIsNewOpen(false)
             setFormData({ nome: '', email: '', telefone: '', bi_passaporte: '', especialidades: [] })
             fetchColaboradores()
+        } catch (error: any) {
+            toast.error('Erro: ' + error.message)
+        } finally {
+            setLoading(false)
         }
     }
 
@@ -184,7 +229,37 @@ export default function ColaboradoresPage() {
                                     {new Intl.NumberFormat('pt-MZ', { style: 'currency', currency: 'MZN' }).format(colab.saldo_pendente || 0)}
                                 </TableCell>
                                 <TableCell className="text-right">
-                                    <Button variant="ghost" size="sm">Ver Perfil</Button>
+                                    {!colab.user_id ? (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+                                            onClick={async () => {
+                                                const { createBrowserClient } = await import('@supabase/ssr')
+                                                const tempSupabase = createBrowserClient(
+                                                    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                                                    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+                                                    { auth: { persistSession: false } }
+                                                )
+                                                const { data, error } = await tempSupabase.auth.signUp({
+                                                    email: colab.email,
+                                                    password: '123456',
+                                                    options: { data: { role: 'colaborador', nome: colab.nome } }
+                                                })
+                                                if (error) toast.error('Erro ao gerar conta: ' + error.message)
+                                                else if (data.user) {
+                                                    await supabase.from('colaboradores').update({ user_id: data.user.id }).eq('id', colab.id)
+                                                    toast.success('Conta gerada! Senha: 123456')
+                                                    fetchColaboradores()
+                                                }
+                                            }}
+                                        >
+                                            Gerar Acesso
+                                        </Button>
+                                    ) : (
+                                        <Badge variant="secondary" className="bg-slate-100 text-slate-500">Activo</Badge>
+                                    )}
+                                    <Button variant="ghost" size="sm" className="ml-2">Ver Perfil</Button>
                                 </TableCell>
                             </TableRow>
                         ))}

@@ -13,7 +13,9 @@ import {
     ClipboardList,
     CreditCard,
     FolderOpen,
-    LogOut
+    LogOut,
+    Tags,
+    BarChart3
 } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import Image from 'next/image'
