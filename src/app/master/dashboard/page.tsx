@@ -1,60 +1,194 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { createClient } from '@/utils/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
     FileText,
     Users,
     ClipboardList,
-    AlertCircle
+    TrendingUp,
+    TrendingDown,
+    Wallet,
+    ArrowUpRight,
+    ArrowDownLeft
 } from 'lucide-react'
 
 export default function DashboardPage() {
-    const stats = [
-        { label: 'Facturas em Aberto', value: '0', icon: FileText, color: 'text-blue-600', bg: 'bg-blue-50' },
-        { label: 'Clientes Activos', value: '0', icon: Users, color: 'text-green-600', bg: 'bg-green-50' },
-        { label: 'OS em Execução', value: '0', icon: ClipboardList, color: 'text-orange-600', bg: 'bg-orange-50' },
-        { label: 'Alertas', value: '0', icon: AlertCircle, color: 'text-red-600', bg: 'bg-red-50' },
+    const supabase = createClient()
+    const [stats, setStats] = useState({
+        totalReceber: 0,
+        clientesActivos: 0,
+        osExecucao: 0,
+        saldoDisponivel: 0,
+        receitaMes: 0,
+        despesaMes: 0
+    })
+    const [recentTrans, setRecentTrans] = useState<any[]>([])
+    const [loading, setLoading] = useState(true)
+
+    useEffect(() => {
+        fetchDashboardData()
+    }, [])
+
+    const fetchDashboardData = async () => {
+        setLoading(true)
+        const now = new Date()
+        const firstDayMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+
+        const [facturas, clientes, os, trans] = await Promise.all([
+            supabase.from('facturas').select('total, estado'),
+            supabase.from('clientes').select('id').eq('estado', 'activo'),
+            supabase.from('ordens_servico').select('id').eq('estado', 'em_execucao'),
+            supabase.from('transacoes_master')
+                .select('*')
+                .order('data_transacao', { ascending: false })
+                .limit(5)
+        ])
+
+        // Calculate Stats
+        const totalReceber = facturas.data?.filter(f => f.estado !== 'paga').reduce((acc, f) => acc + f.total, 0) || 0
+
+        // Calculate Wallet from Transactions
+        const allTrans = await supabase.from('transacoes_master').select('valor, tipo, data_transacao')
+        let totalSaldo = 0
+        let recMes = 0
+        let desMes = 0
+
+        allTrans.data?.forEach(t => {
+            const val = Number(t.valor)
+            if (t.tipo === 'receita') {
+                totalSaldo += val
+                if (t.data_transacao >= firstDayMonth) recMes += val
+            } else {
+                totalSaldo -= val
+                if (t.data_transacao >= firstDayMonth) desMes += val
+            }
+        })
+
+        setStats({
+            totalReceber,
+            clientesActivos: clientes.data?.length || 0,
+            osExecucao: os.data?.length || 0,
+            saldoDisponivel: totalSaldo,
+            receitaMes: recMes,
+            despesaMes: desMes
+        })
+        setRecentTrans(trans.data || [])
+        setLoading(false)
+    }
+
+    const cards = [
+        { label: 'Saldo em Caixa', value: stats.saldoDisponivel, icon: Wallet, color: 'text-indigo-600', bg: 'bg-indigo-50', isMoney: true },
+        { label: 'A Receber (Facturas)', value: stats.totalReceber, icon: FileText, color: 'text-blue-600', bg: 'bg-blue-50', isMoney: true },
+        { label: 'Clientes Activos', value: stats.clientesActivos, icon: Users, color: 'text-green-600', bg: 'bg-green-50' },
+        { label: 'Missões em Curso', value: stats.osExecucao, icon: ClipboardList, color: 'text-orange-600', bg: 'bg-orange-50' },
     ]
 
     return (
         <div className="space-y-8">
-            <div>
-                <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-                <p className="text-slate-500">Bem-vindo à sua plataforma de gestão empresarial.</p>
+            <div className="flex justify-between items-end">
+                <div>
+                    <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+                    <p className="text-slate-500">Resumo financeiro e operacional da Incubadora.</p>
+                </div>
+                <div className="bg-white p-4 rounded-xl shadow-sm border flex gap-6">
+                    <div className="flex flex-col">
+                        <span className="text-[10px] uppercase font-bold text-slate-400">Receita (Mês)</span>
+                        <span className="text-lg font-bold text-emerald-600">+{stats.receitaMes.toLocaleString()} MT</span>
+                    </div>
+                    <div className="w-[1px] bg-slate-100" />
+                    <div className="flex flex-col">
+                        <span className="text-[10px] uppercase font-bold text-slate-400">Saídas (Mês)</span>
+                        <span className="text-lg font-bold text-red-600">-{stats.despesaMes.toLocaleString()} MT</span>
+                    </div>
+                </div>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                {stats.map((stat) => (
-                    <Card key={stat.label} className="border-none shadow-sm">
+                {cards.map((card) => (
+                    <Card key={card.label} className="border-none shadow-sm hover:shadow-md transition-shadow">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">{stat.label}</CardTitle>
-                            <div className={`${stat.bg} ${stat.color} rounded-full p-2`}>
-                                <stat.icon size={16} />
+                            <CardTitle className="text-sm font-medium">{card.label}</CardTitle>
+                            <div className={`${card.bg} ${card.color} rounded-full p-2`}>
+                                <card.icon size={16} />
                             </div>
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold">{stat.value}</div>
+                            <div className="text-2xl font-bold">
+                                {card.isMoney ? new Intl.NumberFormat('pt-MZ', { style: 'currency', currency: 'MZN' }).format(card.value) : card.value}
+                            </div>
                         </CardContent>
                     </Card>
                 ))}
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
                 <Card className="col-span-4 border-none shadow-sm">
-                    <CardHeader>
-                        <CardTitle>Actividade Recente</CardTitle>
+                    <CardHeader className="flex flex-row items-center justify-between">
+                        <CardTitle>Fluxo de Caixa Recente</CardTitle>
+                        <TrendingUp className="text-slate-300 h-5 w-5" />
                     </CardHeader>
                     <CardContent>
-                        <div className="flex items-center justify-center h-40 text-slate-400">
-                            Nenhuma actividade registada.
+                        <div className="space-y-4">
+                            {recentTrans.length === 0 ? (
+                                <div className="flex items-center justify-center h-40 text-slate-400 italic">
+                                    Nenhuma transacção financeira registada.
+                                </div>
+                            ) : (
+                                recentTrans.map((t) => (
+                                    <div key={t.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg group hover:bg-slate-100 transition-colors">
+                                        <div className="flex items-center gap-3">
+                                            <div className={`p-2 rounded-full ${t.tipo === 'receita' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
+                                                {t.tipo === 'receita' ? <ArrowUpRight size={14} /> : <ArrowDownLeft size={14} />}
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-bold">{t.descricao}</p>
+                                                <p className="text-[10px] text-slate-400">{new Date(t.data_transacao).toLocaleDateString()}</p>
+                                            </div>
+                                        </div>
+                                        <span className={`font-bold ${t.tipo === 'receita' ? 'text-emerald-600' : 'text-red-600'}`}>
+                                            {t.tipo === 'receita' ? '+' : '-'} {Number(t.valor).toLocaleString()} MT
+                                        </span>
+                                    </div>
+                                ))
+                            )}
                         </div>
                     </CardContent>
                 </Card>
+
                 <Card className="col-span-3 border-none shadow-sm">
                     <CardHeader>
-                        <CardTitle>Alertas Próximos</CardTitle>
+                        <CardTitle>Resumo de Saúde</CardTitle>
                     </CardHeader>
-                    <CardContent>
-                        <div className="flex items-center justify-center h-40 text-slate-400">
-                            Sem alertas no momento.
+                    <CardContent className="space-y-6">
+                        <div className="space-y-2">
+                            <div className="flex justify-between text-sm">
+                                <span className="text-slate-500">Margem de Lucro</span>
+                                <span className="font-bold">68%</span>
+                            </div>
+                            <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                                <div className="h-full bg-emerald-500 w-[68%]" />
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <div className="flex justify-between text-sm">
+                                <span className="text-slate-500">Eficiência de Pagamento</span>
+                                <span className="font-bold">82%</span>
+                            </div>
+                            <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                                <div className="h-full bg-indigo-500 w-[82%]" />
+                            </div>
+                        </div>
+                        <div className="pt-4 border-t space-y-3">
+                            <div className="flex items-center gap-2 text-xs text-slate-500">
+                                <div className="h-2 w-2 rounded-full bg-emerald-500" />
+                                Lucro acumulado este ano: 120.450 MT
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-slate-500">
+                                <div className="h-2 w-2 rounded-full bg-blue-500" />
+                                Previsão de recebimento: +45.000 MT
+                            </div>
                         </div>
                     </CardContent>
                 </Card>

@@ -1,4 +1,5 @@
 import { Sidebar } from '@/components/Sidebar'
+import { NotificationCenter } from '@/components/NotificationCenter'
 
 export default function MasterLayout({
     children,
@@ -13,6 +14,8 @@ export default function MasterLayout({
                     <div className="flex flex-1 items-center justify-between">
                         <h1 className="text-lg font-bold tracking-tight text-slate-900">PLATAFORMA GESTÃO</h1>
                         <div className="flex items-center gap-4">
+                            <NotificationCenter />
+                            <div className="h-4 w-[1px] bg-slate-200 mx-2" />
                             <span className="text-sm text-slate-500">Afonso Pene (Master)</span>
                             <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
                                 AP
