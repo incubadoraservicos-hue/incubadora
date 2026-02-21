@@ -19,6 +19,8 @@ export async function createColaboradorAction(formData: any) {
         })
         : null
 
+    const publicClient = createClient(supabaseUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+
     // We use the best available client for DB operations
     const effectiveClient = adminClient || publicClient
 
