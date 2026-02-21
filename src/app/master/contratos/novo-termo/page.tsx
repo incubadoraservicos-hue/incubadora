@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { ArrowLeft, Save, FileSignature } from 'lucide-react'
 import { toast } from 'sonner'
+import { sendPushNotification } from '@/app/actions/notifications'
 
 function NovoTermoContent() {
     const router = useRouter()
@@ -93,6 +94,13 @@ function NovoTermoContent() {
             }])
 
             if (error) throw error
+
+            // Enviar Notificação Push
+            await sendPushNotification(
+                formData.colaborador_id,
+                '📋 Novo Termo de Compromisso',
+                'Foi emitido um novo termo de compromisso para si. Por favor, aceda ao seu painel para assinar.'
+            )
 
             toast.success('Termo de Compromisso enviado para o colaborador!')
             router.push('/master/contratos')

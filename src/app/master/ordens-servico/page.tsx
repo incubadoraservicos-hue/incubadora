@@ -26,6 +26,7 @@ import {
     TableRow
 } from '@/components/ui/table'
 import { toast } from 'sonner'
+import { sendPushNotification } from '@/app/actions/notifications'
 import {
     Dialog,
     DialogContent,
@@ -124,6 +125,13 @@ export default function OrdensServicoPage() {
 
         if (error) toast.error('Erro: ' + error.message)
         else {
+            // Enviar Notificação Push
+            await sendPushNotification(
+                formData.colaborador_id,
+                '🚀 Nova Missão Atribuída',
+                `Recebeu a missão ${numero}. Verifique os detalhes no seu painel.`
+            )
+
             toast.success('Ordem de Serviço enviada!')
             setIsNewOpen(false)
             setFormData({ colaborador_id: '', cliente_id: '', descricao: '', valor_colaborador: 0, prazo: '', despesas: [] })
