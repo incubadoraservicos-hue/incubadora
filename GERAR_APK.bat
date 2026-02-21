@@ -7,8 +7,11 @@ echo.
 
 cd /d %~dp0
 
-echo [1/3] Sincronizando com o Android (Capacitor)...
-echo Fazendo o sync direto com a URL do Render...
+echo [1/3] Preparando diretorios e Sincronizando (Capacitor)...
+if not exist "out" mkdir "out"
+if not exist "android\app\src\main\assets" mkdir "android\app\src\main\assets"
+
+echo Fazendo o sync com a URL do Render...
 call npx cap sync android
 if %errorlevel% neq 0 (
     echo [ERRO] Falha ao sincronizar com o Capacitor.
