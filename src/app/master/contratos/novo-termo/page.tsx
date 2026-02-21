@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { ArrowLeft, Save, FileSignature } from 'lucide-react'
 import { toast } from 'sonner'
 
-export default function NovoTermoPage() {
+function NovoTermoContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
     const osIdParam = searchParams.get('os_id')
@@ -207,5 +207,13 @@ export default function NovoTermoPage() {
                 </div>
             </form>
         </div>
+    )
+}
+
+export default function NovoTermoPage() {
+    return (
+        <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Carregando...</div>}>
+            <NovoTermoContent />
+        </Suspense>
     )
 }
