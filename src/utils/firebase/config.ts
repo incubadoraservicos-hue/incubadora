@@ -10,13 +10,22 @@ const firebaseConfig = {
     appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
 };
 
-// Initialize Firebase
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+// Check if we have the necessary config
+const hasConfig = firebaseConfig.apiKey && firebaseConfig.messagingSenderId;
 
+// Initialize Firebase only if config is present
+let app: any;
 let messaging: Messaging | undefined;
 
-if (typeof window !== "undefined") {
-    messaging = getMessaging(app);
+if (hasConfig) {
+    try {
+        app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+        if (typeof window !== "undefined") {
+            messaging = getMessaging(app);
+        }
+    } catch (error) {
+        console.error("Firebase initialization error:", error);
+    }
 }
 
 export { app, messaging };
