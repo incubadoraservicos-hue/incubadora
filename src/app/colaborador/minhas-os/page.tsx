@@ -9,8 +9,10 @@ import {
     Wallet,
     Clock,
     CheckCircle2,
-    AlertCircle
+    AlertCircle,
+    Bell
 } from 'lucide-react'
+import { requestNotificationPermission } from '@/utils/firebase/notifications'
 import {
     Table,
     TableBody,
@@ -38,10 +40,16 @@ export default function ColaboradorOSPage() {
     const [loading, setLoading] = useState(true)
     const [reportText, setReportText] = useState('')
     const [selectedOS, setSelectedOS] = useState<any>(null)
+    const [colabId, setColabId] = useState<string | null>(null)
+    const [notifEnabled, setNotifEnabled] = useState(false)
     const supabase = createClient()
 
     useEffect(() => {
         fetchMyOS()
+        // Verificar se já temos permissão
+        if (typeof window !== 'undefined' && 'Notification' in window) {
+            setNotifEnabled(Notification.permission === 'granted')
+        }
     }, [])
 
     const fetchMyOS = async () => {
@@ -53,6 +61,7 @@ export default function ColaboradorOSPage() {
             const { data: colab } = await supabase.from('colaboradores').select('id').eq('email', user.email).single()
 
             if (colab) {
+                setColabId(colab.id)
                 const { data, error } = await supabase
                     .from('ordens_servico')
                     .select('*')
@@ -64,6 +73,17 @@ export default function ColaboradorOSPage() {
             }
         }
         setLoading(false)
+    }
+
+    const handleEnableNotifications = async () => {
+        if (!colabId) return
+        const token = await requestNotificationPermission(colabId)
+        if (token) {
+            setNotifEnabled(true)
+            toast.success('Notificações no telemóvel activadas!')
+        } else {
+            toast.error('Não foi possível activar as notificações. Verifique as definições do seu navegador.')
+        }
     }
 
     const handleAction = async (id: string, nextStatus: string) => {
@@ -97,9 +117,27 @@ export default function ColaboradorOSPage() {
 
     return (
         <div className="space-y-6">
-            <div>
-                <h2 className="text-3xl font-bold tracking-tight">Minhas Missões & Serviços</h2>
-                <p className="text-slate-500">Aceite novos desafios e reporte o seu progresso.</p>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                    <h2 className="text-3xl font-bold tracking-tight text-[#002B5B]">Minhas Missões & Serviços</h2>
+                    <p className="text-slate-500 text-sm">Aceite novos desafios e reporte o seu progresso.</p>
+                </div>
+                {!notifEnabled && (
+                    <Button
+                        onClick={handleEnableNotifications}
+                        variant="outline"
+                        className="bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100 hover:text-amber-800"
+                    >
+                        <Bell className="mr-2 h-4 w-4 animate-bounce" />
+                        Activar Notificações no Telemóvel
+                    </Button>
+                )}
+                {notifEnabled && (
+                    <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 py-2">
+                        <Bell className="mr-3 h-3 w-3" />
+                        Notificações Activas
+                    </Badge>
+                )}
             </div>
 
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -115,8 +153,8 @@ export default function ColaboradorOSPage() {
                 ) : os.map(item => (
                     <Card key={item.id} className="border-none shadow-sm relative overflow-hidden group hover:shadow-md transition-shadow">
                         <div className={`absolute top-0 left-0 w-1 h-full font-bold ${item.estado === 'enviada' ? 'bg-indigo-500' :
-                                item.estado === 'rejeitada' ? 'bg-red-500' :
-                                    'bg-emerald-500'
+                            item.estado === 'rejeitada' ? 'bg-red-500' :
+                                'bg-emerald-500'
                             }`} />
                         <CardHeader className="pb-2">
                             <div className="flex justify-between items-center">
