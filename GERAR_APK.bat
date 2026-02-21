@@ -7,7 +7,7 @@ echo.
 
 cd /d %~dp0
 
-echo [1/3] Preparando diretorios e Sincronizando (Capacitor)...
+echo [1/3] Preparando diretorios e Sincronizando Capacitor...
 if not exist "out" mkdir "out"
 if not exist "android\app\src\main\assets" mkdir "android\app\src\main\assets"
 
@@ -28,19 +28,15 @@ if %errorlevel% neq 0 (
     echo [ERRO] A compilacao falhou. 
     echo ----------------------------------------------------------
     echo DICA: 
-    echo 1. Certifique-se que o Java (JDK 17) esta instalado.
-    echo 2. Certifique-se que o Android SDK esta configurado.
-    echo 3. A forma mais facil e abrir a pasta 'android' no Android Studio
-    echo    pela primeira vez para ele baixar tudo automaticamente.
+    echo 1. Certifique-se que o Java JDK 17 esta instalado.
+    echo 2. O local do SDK foi configurado automaticamente em local.properties.
     echo ----------------------------------------------------------
 ) else (
     echo.
-    echo [SUCESSO!] APK gerado com sucesso! 🎉
+    echo [SUCESSO] APK gerado com sucesso!
     echo.
     echo O arquivo esta em:
     echo %~dp0android\app\build\outputs\apk\debug\app-debug.apk
-    echo.
-    echo Pode copiar este arquivo para o seu telemovel e instalar.
 )
 
 pause
