@@ -77,7 +77,7 @@ export default function MeusContratosPage() {
             if (action === 'rejeitado') setSelectedTermo(null)
             else {
                 // Atualiza o estado do termo selecionado localmente para mostrar o selo
-                setSelectedTermo(prev => ({ ...prev, estado: 'aceite' }))
+                setSelectedTermo((prev: any) => ({ ...prev, estado: 'aceite' }))
             }
             fetchContratos()
         }
@@ -115,8 +115,8 @@ export default function MeusContratosPage() {
                                     <div className="flex items-center gap-2">
                                         <span className="font-mono text-[10px] font-bold text-slate-400">{item.numero}</span>
                                         <Badge variant="outline" className={`text-[10px] border-none ${item.estado === 'pendente' ? 'bg-amber-50 text-amber-700' :
-                                                item.estado === 'aceite' ? 'bg-emerald-50 text-emerald-700' :
-                                                    'bg-red-50 text-red-700'
+                                            item.estado === 'aceite' ? 'bg-emerald-50 text-emerald-700' :
+                                                'bg-red-50 text-red-700'
                                             }`}>
                                             {item.estado === 'pendente' ? 'Pendente de Assinatura' :
                                                 item.estado === 'aceite' ? 'Contrato Aceite' : 'Recusado'}
