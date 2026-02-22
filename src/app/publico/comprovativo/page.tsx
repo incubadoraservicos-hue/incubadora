@@ -6,7 +6,7 @@ import { createClient } from '@/utils/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { QrCode, FileDown, Loader2 } from 'lucide-react'
-import domtoimage from 'dom-to-image-more'
+// import domtoimage from 'dom-to-image-more'
 import jsPDF from 'jspdf'
 import { toast } from 'sonner'
 
@@ -58,6 +58,7 @@ function PublicReceiptContent() {
 
         setIsGenerating(true)
         try {
+            const domtoimage = (await import('dom-to-image-more')).default
             const dataUrl = await domtoimage.toPng(element, {
                 quality: 1,
                 bgcolor: '#ffffff'

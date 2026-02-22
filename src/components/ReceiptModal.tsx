@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Printer, Download, QrCode, FileDown, Share2, Link, MessageCircle } from 'lucide-react'
 import Image from 'next/image'
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden'
-import domtoimage from 'dom-to-image-more'
+// import domtoimage from 'dom-to-image-more'
 import jsPDF from 'jspdf'
 import { toast } from 'sonner'
 
@@ -50,6 +50,7 @@ export function ReceiptModal({ os, isOpen, onClose }: ReceiptModalProps) {
 
         setIsGenerating(true)
         try {
+            const domtoimage = (await import('dom-to-image-more')).default
             const dataUrl = await domtoimage.toPng(element, {
                 quality: 1,
                 bgcolor: '#ffffff',
