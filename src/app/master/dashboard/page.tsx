@@ -49,8 +49,8 @@ export default function DashboardPage() {
         setLoading(true)
         try {
             const [facturasRes, osRes, transRes, clientesRes] = await Promise.all([
-                supabase.from('facturas').select('total, estado, data_pagamento'),
-                supabase.from('ordens_servico').select('valor, estado, data_pagamento'),
+                supabase.from('facturas').select('id, total, estado, data_pagamento'),
+                supabase.from('ordens_servico').select('id, valor, estado, data_pagamento'),
                 supabase.from('transacoes_master').select('*').order('created_at', { ascending: false }),
                 supabase.from('clientes').select('id', { count: 'exact', head: true }).eq('estado', 'activo')
             ])
