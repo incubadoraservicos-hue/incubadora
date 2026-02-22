@@ -17,6 +17,7 @@ import {
     Tags,
     BarChart3,
     Key,
+    Briefcase,
     X
 } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
@@ -32,9 +33,11 @@ const menuItems = [
     { icon: UserRound, label: 'Colaboradores', href: '/master/colaboradores' },
     { icon: ClipboardList, label: 'Ordens de Serviço', href: '/master/ordens-servico' },
     { icon: Key, label: 'Licenças Offline', href: '/master/sistemas/licencas' },
+    { icon: Briefcase, label: 'Carteira Master', href: '/master/carteira' },
     { icon: CreditCard, label: 'Saldos & Pagamentos', href: '/master/pagamentos' },
     { icon: FolderOpen, label: 'Documentos', href: '/master/documentos' },
     { icon: BarChart3, label: 'Painel Financeiro', href: '/master/relatorios' },
+    { icon: Tags, label: 'Mali Ya Mina', href: '/master/mali-ya-mina' },
 ]
 
 interface SidebarProps {

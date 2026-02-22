@@ -2,7 +2,8 @@
 import { useState } from 'react'
 import { Sidebar } from '@/components/Sidebar'
 import { NotificationCenter } from '@/components/NotificationCenter'
-import { Menu } from 'lucide-react'
+import { Menu, LogOut } from 'lucide-react'
+import { createClient } from '@/utils/supabase/client'
 
 export default function MasterLayout({
     children,
@@ -10,6 +11,12 @@ export default function MasterLayout({
     children: React.ReactNode
 }) {
     const [sidebarOpen, setSidebarOpen] = useState(false)
+    const supabase = createClient()
+
+    const handleSignOut = async () => {
+        await supabase.auth.signOut()
+        window.location.href = '/auth/login'
+    }
 
     return (
         <div className="min-h-screen bg-slate-50">
@@ -45,6 +52,13 @@ export default function MasterLayout({
                             <div className="h-7 w-7 lg:h-8 lg:w-8 rounded-full bg-indigo-600 flex items-center justify-center text-white text-[10px] lg:text-xs font-bold shadow-md">
                                 AP
                             </div>
+                            <button
+                                onClick={handleSignOut}
+                                title="Sair do Sistema"
+                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors ml-1"
+                            >
+                                <LogOut size={18} />
+                            </button>
                         </div>
                     </div>
                 </header>

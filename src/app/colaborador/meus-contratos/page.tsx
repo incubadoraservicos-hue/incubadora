@@ -62,7 +62,7 @@ export default function MeusContratosPage() {
         setLoading(false)
     }
 
-    const handleAction = async (id: string, action: 'aceite' | 'rejeitado') => {
+    const handleAction = async (id: string, action: 'activo' | 'rejeitado') => {
         const { error } = await supabase
             .from('contratos')
             .update({ estado: action })
@@ -70,14 +70,14 @@ export default function MeusContratosPage() {
 
         if (error) toast.error('Erro ao processar acção')
         else {
-            toast.success(action === 'aceite' ? 'Acordo assinado com sucesso!' : 'Acordo rejeitado.')
+            toast.success(action === 'activo' ? 'Acordo assinado com sucesso!' : 'Acordo rejeitado.')
 
             // Se aceitou, mantém aberto para ele ver o selo e poder baixar/imprimir
             // Senão, fecha.
             if (action === 'rejeitado') setSelectedTermo(null)
             else {
                 // Atualiza o estado do termo selecionado localmente para mostrar o selo
-                setSelectedTermo((prev: any) => ({ ...prev, estado: 'aceite' }))
+                setSelectedTermo((prev: any) => ({ ...prev, estado: 'activo' }))
             }
             fetchContratos()
         }
@@ -108,18 +108,18 @@ export default function MeusContratosPage() {
                     </Card>
                 ) : contratos.map(item => (
                     <Card key={item.id} className="border-none shadow-sm overflow-hidden flex flex-col md:flex-row hover:shadow-md transition-shadow cursor-pointer" onClick={() => setSelectedTermo(item)}>
-                        <div className={`w-2 h-full ${item.estado === 'pendente' ? 'bg-amber-400' : item.estado === 'aceite' ? 'bg-emerald-500' : 'bg-red-400'}`} />
+                        <div className={`w-2 h-full ${item.estado === 'pendente' ? 'bg-amber-400' : item.estado === 'activo' ? 'bg-emerald-500' : 'bg-red-400'}`} />
                         <div className="flex-1 p-5">
                             <div className="flex justify-between items-center">
                                 <div className="space-y-1">
                                     <div className="flex items-center gap-2">
                                         <span className="font-mono text-[10px] font-bold text-slate-400">{item.numero}</span>
                                         <Badge variant="outline" className={`text-[10px] border-none ${item.estado === 'pendente' ? 'bg-amber-50 text-amber-700' :
-                                            item.estado === 'aceite' ? 'bg-emerald-50 text-emerald-700' :
+                                            item.estado === 'activo' ? 'bg-emerald-50 text-emerald-700' :
                                                 'bg-red-50 text-red-700'
                                             }`}>
                                             {item.estado === 'pendente' ? 'Pendente de Assinatura' :
-                                                item.estado === 'aceite' ? 'Contrato Aceite' : 'Recusado'}
+                                                item.estado === 'activo' ? 'Contrato Aceite' : 'Recusado'}
                                         </Badge>
                                     </div>
                                     <h3 className="text-base font-bold text-slate-800 uppercase">{item.descricao}</h3>
@@ -158,7 +158,7 @@ export default function MeusContratosPage() {
                                     <Button variant="outline" className="text-red-600 border-red-200 hover:bg-red-50" onClick={() => handleAction(selectedTermo.id, 'rejeitado')}>
                                         <XCircle className="mr-2 h-4 w-4" /> Recusar Acordo
                                     </Button>
-                                    <Button className="bg-emerald-600 hover:bg-emerald-700 font-bold px-8" onClick={() => handleAction(selectedTermo.id, 'aceite')}>
+                                    <Button className="bg-emerald-600 hover:bg-emerald-700 font-bold px-8" onClick={() => handleAction(selectedTermo.id, 'activo')}>
                                         <CheckCircle2 className="mr-2 h-4 w-4" /> Concordo e Assino Digitalmente
                                     </Button>
                                 </>
@@ -179,7 +179,7 @@ export default function MeusContratosPage() {
                                 descricao={selectedTermo.descricao}
                                 valor={selectedTermo.valor}
                                 data={selectedTermo.created_at}
-                                assinado={selectedTermo.estado === 'aceite'}
+                                assinado={selectedTermo.estado === 'activo'}
                             />
                         </div>
                     </div>

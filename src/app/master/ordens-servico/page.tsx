@@ -39,15 +39,32 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
+import { ReceiptModal } from '@/components/ReceiptModal'
 
 export default function OrdensServicoPage() {
     const [os, setOs] = useState<any[]>([])
+    const [loading, setLoading] = useState(true)
+    const [isMounted, setIsMounted] = useState(false)
+    const [selectedOS, setSelectedOS] = useState<any>(null)
+    const [selectedReport, setSelectedReport] = useState<any>(null)
+    const [masterRevision, setMasterRevision] = useState('')
+    const [isSavingRevision, setIsSavingRevision] = useState(false)
+    const [receiptOS, setReceiptOS] = useState<any>(null)
     const [colaboradores, setColaboradores] = useState<any[]>([])
     const [clientes, setClientes] = useState<any[]>([])
-    const [loading, setLoading] = useState(true)
     const [isNewOpen, setIsNewOpen] = useState(false)
-    const [selectedReport, setSelectedReport] = useState<any>(null)
     const supabase = createClient()
+
+    useEffect(() => {
+        setIsMounted(true)
+        fetchData()
+    }, [])
+
+    useEffect(() => {
+        if (selectedReport) {
+            setMasterRevision(selectedReport.revisao_master || '')
+        }
+    }, [selectedReport])
 
     const [formData, setFormData] = useState({
         colaborador_id: '',
@@ -65,7 +82,7 @@ export default function OrdensServicoPage() {
     const fetchData = async () => {
         setLoading(true)
         const [osRes, colabRes, clientRes] = await Promise.all([
-            supabase.from('ordens_servico').select('*, colaboradores(nome), clientes(nome)').order('created_at', { ascending: false }),
+            supabase.from('ordens_servico').select('*, colaboradores(nome), clientes(nome), contratos(id, estado, numero)').order('created_at', { ascending: false }),
             supabase.from('colaboradores').select('id, nome').eq('estado', 'activo'),
             supabase.from('clientes').select('id, nome').eq('estado', 'activo')
         ])
@@ -137,6 +154,25 @@ export default function OrdensServicoPage() {
             setFormData({ colaborador_id: '', cliente_id: '', descricao: '', valor_colaborador: 0, prazo: '', despesas: [] })
             fetchData()
         }
+    }
+
+    const handleSaveRevision = async () => {
+        if (!selectedReport) return
+
+        setIsSavingRevision(true)
+        const { error } = await supabase
+            .from('ordens_servico')
+            .update({ revisao_master: masterRevision })
+            .eq('id', selectedReport.id)
+
+        if (error) {
+            toast.error('Erro ao salvar revisão: ' + error.message)
+        } else {
+            toast.success('Revisão do Master salva!')
+            fetchData()
+            setSelectedReport(null)
+        }
+        setIsSavingRevision(false)
     }
 
     const getStatusBadge = (status: string) => {
@@ -322,6 +358,31 @@ export default function OrdensServicoPage() {
                                 <TableCell>{getStatusBadge(item.estado)}</TableCell>
                                 <TableCell className="text-right">
                                     <div className="flex justify-end gap-2">
+                                        {/* Botão de Termo: Se já existe, mostra Ver. Se não existe e está em fase de criação, mostra Gerar */}
+                                        {item.contratos && item.contratos.length > 0 ? (
+                                            <Link href={`/master/contratos?num=${item.contratos[0].numero}`}>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="h-8 text-[10px] text-blue-600 border-blue-200 bg-blue-50"
+                                                >
+                                                    <FileSignature className="h-3 w-3 mr-1" /> Ver Termo
+                                                </Button>
+                                            </Link>
+                                        ) : (
+                                            (item.estado === 'enviada' || item.estado === 'concluida' || item.estado === 'paga') && (
+                                                <Link href={`/master/contratos/novo-termo?os_id=${item.id}`}>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        className="h-8 text-[10px] text-amber-600 border-amber-200 bg-amber-50"
+                                                    >
+                                                        <FileSignature className="h-3 w-3 mr-1" /> Gerar Termo
+                                                    </Button>
+                                                </Link>
+                                            )
+                                        )}
+
                                         {item.relatorio && (
                                             <Button
                                                 variant="outline"
@@ -332,16 +393,16 @@ export default function OrdensServicoPage() {
                                                 Ver Relatório
                                             </Button>
                                         )}
-                                        {item.estado === 'concluida' && (
-                                            <Link href={`/master/contratos/novo-termo?os_id=${item.id}`}>
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    className="h-8 text-[10px] text-amber-600 border-amber-200 bg-amber-50"
-                                                >
-                                                    <FileSignature className="h-3 w-3 mr-1" /> Gerar Termo
-                                                </Button>
-                                            </Link>
+
+                                        {item.estado === 'paga' && (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="h-8 text-[10px] text-emerald-600 border-emerald-200 bg-emerald-50"
+                                                onClick={() => setReceiptOS(item)}
+                                            >
+                                                <Banknote className="h-3 w-3 mr-1" /> Comprovativo
+                                            </Button>
                                         )}
                                         <Button variant="ghost" size="icon"><MoreVertical size={16} /></Button>
                                     </div>
@@ -357,16 +418,42 @@ export default function OrdensServicoPage() {
                     <DialogHeader>
                         <DialogTitle>Relatório da Missão: {selectedReport?.numero}</DialogTitle>
                     </DialogHeader>
-                    <div className="py-4">
-                        <div className="bg-slate-50 p-4 rounded-lg border text-sm text-slate-700 whitespace-pre-wrap">
-                            {selectedReport?.relatorio || 'Nenhum relatório enviado.'}
+                    <div className="py-4 space-y-6">
+                        <div className="space-y-2">
+                            <Label className="text-xs uppercase text-slate-500 font-bold">Relatório do Colaborador</Label>
+                            <div className="bg-slate-50 p-4 rounded-lg border text-sm text-slate-700 whitespace-pre-wrap min-h-[100px]">
+                                {selectedReport?.relatorio || 'Nenhum relatório enviado.'}
+                            </div>
+                        </div>
+
+                        <div className="space-y-3 pt-4 border-t">
+                            <Label className="text-xs uppercase text-blue-600 font-bold">Revisão do Master</Label>
+                            <Textarea
+                                placeholder="Adicione a sua revisão ou feedback sobre este serviço..."
+                                className="min-h-[120px] text-sm"
+                                value={masterRevision}
+                                onChange={(e) => setMasterRevision(e.target.value)}
+                            />
                         </div>
                     </div>
-                    <DialogFooter>
-                        <Button onClick={() => setSelectedReport(null)}>Fechar</Button>
+                    <DialogFooter className="gap-2">
+                        <Button variant="outline" onClick={() => setSelectedReport(null)}>Fechar</Button>
+                        <Button
+                            className="bg-indigo-600 hover:bg-indigo-700"
+                            onClick={handleSaveRevision}
+                            disabled={isSavingRevision}
+                        >
+                            {isSavingRevision ? 'Salvando...' : 'Salvar Revisão'}
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <ReceiptModal
+                isOpen={!!receiptOS}
+                onClose={() => setReceiptOS(null)}
+                os={receiptOS}
+            />
         </div>
     )
 }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/utils/supabase/client'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import {
     FileText,
     Users,
@@ -11,8 +11,10 @@ import {
     TrendingDown,
     Wallet,
     ArrowUpRight,
-    ArrowDownLeft
+    ArrowDownLeft,
+    Tags
 } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 
 export default function DashboardPage() {
     const supabase = createClient()
@@ -20,7 +22,8 @@ export default function DashboardPage() {
         totalReceber: 0,
         clientesActivos: 0,
         osExecucao: 0,
-        saldoDisponivel: 0,
+        saldoTotal: 0,
+        saldoMali: 0,
         receitaMes: 0,
         despesaMes: 0
     })
@@ -30,7 +33,6 @@ export default function DashboardPage() {
     useEffect(() => {
         fetchDashboardData()
 
-        // Sincronização em Tempo Real (Dashboard Vivo)
         const channel = supabase
             .channel('dashboard-sync')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'transacoes_master' }, () => fetchDashboardData())
@@ -44,113 +46,122 @@ export default function DashboardPage() {
     }, [])
 
     const fetchDashboardData = async () => {
-        // Obter data de referência para o mês actual
-        const now = new Date()
-        const firstDayMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+        setLoading(true)
+        try {
+            const [facturasRes, osRes, transRes, clientesRes] = await Promise.all([
+                supabase.from('facturas').select('total, estado, data_pagamento'),
+                supabase.from('ordens_servico').select('valor, estado, data_pagamento'),
+                supabase.from('transacoes_master').select('*').order('created_at', { ascending: false }),
+                supabase.from('clientes').select('id', { count: 'exact', head: true }).eq('estado', 'activo')
+            ])
 
-        const [facturas, clientes, os] = await Promise.all([
-            supabase.from('facturas').select('total, estado, numero, data_pagamento'),
-            supabase.from('clientes').select('id').eq('estado', 'activo'),
-            supabase.from('ordens_servico').select('id, estado, valor_colaborador, numero, data_pagamento').eq('estado', 'em_execucao')
-        ])
+            const facturas = facturasRes.data || []
+            const misses = osRes.data || []
+            const transactions = transRes.data || []
+            const clientesCount = clientesRes.count || 0
 
-        // 1. Buscar transacções reais (Pagos)
-        const { data: facturasPagas } = await supabase.from('facturas').select('*').eq('estado', 'paga')
-        const { data: osPagas } = await supabase.from('ordens_servico').select('*').eq('estado', 'paga')
+            // 1. Receitas (Facturas Pagas) e Pendentes (Facturas por Pagar)
+            const pagamentosPendentes = facturas.filter(f => f.estado !== 'paga').reduce((acc, f) => acc + (Number(f.total) || 0), 0)
+            const receitaTotal = facturas.filter(f => f.estado === 'paga').reduce((acc, f) => acc + (Number(f.total) || 0), 0)
 
-        const receitas = facturasPagas || []
-        const despesas = osPagas || []
+            // 2. Despesas (Missões Pagas) e Pendentes (Missões por Pagar)
+            const despesasPendentes = misses.filter(os => os.estado !== 'paga').reduce((acc, os) => acc + (Number(os.valor) || 0), 0)
+            const despesaSubtotal = misses.filter(os => os.estado === 'paga').reduce((acc, os) => acc + (Number(os.valor) || 0), 0)
 
-        // 2. Calcular Estatísticas
-        const totalReceber = facturas.data?.filter(f => f.estado !== 'paga').reduce((acc, f) => acc + f.total, 0) || 0
-        const osEmCurso = os.data?.length || 0
+            // 3. Stats Mensais
+            const firstDayMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+            const recMes = facturas
+                .filter(f => f.estado === 'paga' && f.data_pagamento && new Date(f.data_pagamento) >= firstDayMonth)
+                .reduce((acc, f) => acc + (Number(f.total) || 0), 0)
+            const desMes = misses
+                .filter(os => os.estado === 'paga' && os.data_pagamento && new Date(os.data_pagamento) >= firstDayMonth)
+                .reduce((acc, os) => acc + (Number(os.valor) || 0), 0)
 
-        // 3. Calcular Saldo e Fluxo Mensal
-        let totalSaldo = 0
-        let recMes = 0
-        let desMes = 0
+            // 4. Saldo em Caixa (Receita Real - Despesa Real)
+            const totalSaldo = receitaTotal - despesaSubtotal
 
-        receitas.forEach(f => {
-            totalSaldo += f.total
-            if (f.data_pagamento && f.data_pagamento >= firstDayMonth) recMes += f.total
-        })
+            // 5. Recent Transactions fallback to OS/Invoices if table is empty
+            let formattedTrans = transactions.map(t => ({ ...t, isMali: t.categoria?.startsWith('mali_') }))
 
-        despesas.forEach(o => {
-            totalSaldo -= o.valor_colaborador
-            if (o.data_pagamento && o.data_pagamento >= firstDayMonth) desMes += o.valor_colaborador
-        })
+            if (formattedTrans.length === 0) {
+                // If transactions table is still being populated, show recent paid items
+                const recentInvoices = facturas.filter(f => f.estado === 'paga').slice(0, 3).map(f => ({
+                    id: f.id,
+                    descricao: `Recebimento Factura`,
+                    valor: f.total,
+                    tipo: 'receita',
+                    created_at: f.data_pagamento,
+                    isMali: false
+                }))
+                const recentMissions = misses.filter(os => os.estado === 'paga').slice(0, 3).map(os => ({
+                    id: os.id,
+                    descricao: `Pagamento Missão`,
+                    valor: os.valor,
+                    tipo: 'despesa',
+                    created_at: os.data_pagamento,
+                    isMali: false
+                }))
+                formattedTrans = [...recentInvoices, ...recentMissions].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+            }
 
-        // 4. Construir Histórico Recente (Mesclar os dois)
-        const histReceitas = receitas.map(f => ({
-            id: f.id,
-            tipo: 'receita',
-            descricao: `Factura ${f.numero}`,
-            data_transacao: f.data_pagamento,
-            valor: f.total
-        }))
+            const maliSaldo = formattedTrans.filter(t => t.isMali).reduce((acc, t) => acc + (t.tipo === 'receita' ? t.valor : -t.valor), 0)
 
-        const histDespesas = despesas.map(o => ({
-            id: o.id,
-            tipo: 'despesa',
-            descricao: `Pagamento OS-${o.numero}`,
-            data_transacao: o.data_pagamento,
-            valor: o.valor_colaborador
-        }))
+            setStats({
+                totalReceber: pagamentosPendentes,
+                clientesActivos: clientesCount,
+                osExecucao: despesasPendentes,
+                saldoTotal: totalSaldo,
+                saldoMali: maliSaldo,
+                receitaMes: recMes,
+                despesaMes: desMes
+            })
 
-        const totalRecent = [...histReceitas, ...histDespesas]
-            .sort((a, b) => new Date(b.data_transacao).getTime() - new Date(a.data_transacao).getTime())
-            .slice(0, 5)
-
-        setStats({
-            totalReceber,
-            clientesActivos: clientes.data?.length || 0,
-            osExecucao: osEmCurso,
-            saldoDisponivel: totalSaldo,
-            receitaMes: recMes,
-            despesaMes: desMes
-        })
-        setRecentTrans(totalRecent)
-        setLoading(false)
+            setRecentTrans(formattedTrans.slice(0, 6))
+        } catch (error) {
+            console.error('Erro no dashboard:', error)
+        } finally {
+            setLoading(false)
+        }
     }
 
     const cards = [
-        { label: 'Saldo em Caixa', value: stats.saldoDisponivel, icon: Wallet, color: 'text-indigo-600', bg: 'bg-indigo-50', isMoney: true },
-        { label: 'A Receber (Facturas)', value: stats.totalReceber, icon: FileText, color: 'text-blue-600', bg: 'bg-blue-50', isMoney: true },
-        { label: 'Clientes Activos', value: stats.clientesActivos, icon: Users, color: 'text-green-600', bg: 'bg-green-50' },
-        { label: 'Missões em Curso', value: stats.osExecucao, icon: ClipboardList, color: 'text-orange-600', bg: 'bg-orange-50' },
+        { label: 'Saldo em Caixa', value: stats.saldoTotal, icon: Wallet, color: 'text-slate-900', bg: 'bg-slate-100', isMoney: true },
+        { label: 'Pagamentos Pendentes (Facturas)', value: stats.totalReceber, icon: FileText, color: 'text-blue-600', bg: 'bg-blue-50', isMoney: true },
+        { label: 'Capital Mali Ya Mina', value: stats.saldoMali, icon: Tags, color: 'text-indigo-600', bg: 'bg-indigo-50', isMoney: true },
+        { label: 'Despesas Pendentes (Missões)', value: stats.osExecucao, icon: ClipboardList, color: 'text-orange-600', bg: 'bg-orange-50', isMoney: true },
     ]
 
     return (
         <div className="space-y-8">
-            <div className="flex justify-between items-end">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
                 <div>
-                    <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-                    <p className="text-slate-500">Resumo financeiro e operacional da Incubadora.</p>
+                    <h2 className="text-3xl font-bold tracking-tight text-slate-900">Dashboard Financeiro</h2>
+                    <p className="text-slate-500 font-medium">Controlo consolidado: Hub Geral e Ecossistema Mali.</p>
                 </div>
-                <div className="bg-white p-4 rounded-xl shadow-sm border flex gap-6">
+                <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex gap-6">
                     <div className="flex flex-col">
-                        <span className="text-[10px] uppercase font-bold text-slate-400">Receita (Mês)</span>
-                        <span className="text-lg font-bold text-emerald-600">+{stats.receitaMes.toLocaleString()} MT</span>
+                        <span className="text-[10px] uppercase font-black text-slate-400">Entradas (Mes)</span>
+                        <span className="text-xl font-black text-emerald-600">+{new Intl.NumberFormat('pt-MZ').format(stats.receitaMes)} MT</span>
                     </div>
                     <div className="w-[1px] bg-slate-100" />
                     <div className="flex flex-col">
-                        <span className="text-[10px] uppercase font-bold text-slate-400">Saídas (Mês)</span>
-                        <span className="text-lg font-bold text-red-600">-{stats.despesaMes.toLocaleString()} MT</span>
+                        <span className="text-[10px] uppercase font-black text-slate-400">Saídas (Mes)</span>
+                        <span className="text-xl font-black text-rose-600">-{new Intl.NumberFormat('pt-MZ').format(stats.despesaMes)} MT</span>
                     </div>
                 </div>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 {cards.map((card) => (
-                    <Card key={card.label} className="border-none shadow-sm hover:shadow-md transition-shadow">
+                    <Card key={card.label} className="border-none shadow-sm hover:shadow-md transition-all">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">{card.label}</CardTitle>
-                            <div className={`${card.bg} ${card.color} rounded-full p-2`}>
-                                <card.icon size={16} />
+                            <CardTitle className="text-[10px] uppercase font-black text-slate-500 tracking-wider">{card.label}</CardTitle>
+                            <div className={`${card.bg} ${card.color} rounded-xl p-2.5`}>
+                                <card.icon size={18} />
                             </div>
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold">
+                            <div className={`text-2xl font-black ${card.label.includes('Mina') ? 'text-indigo-600' : 'text-slate-900'}`}>
                                 {card.isMoney ? new Intl.NumberFormat('pt-MZ', { style: 'currency', currency: 'MZN' }).format(card.value) : card.value}
                             </div>
                         </CardContent>
@@ -159,31 +170,37 @@ export default function DashboardPage() {
             </div>
 
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
-                <Card className="col-span-4 border-none shadow-sm">
-                    <CardHeader className="flex flex-row items-center justify-between">
-                        <CardTitle>Fluxo de Caixa Recente</CardTitle>
+                <Card className="col-span-4 border-none shadow-sm bg-white overflow-hidden">
+                    <CardHeader className="bg-slate-50/50 border-b flex flex-row items-center justify-between">
+                        <div>
+                            <CardTitle className="text-base font-bold">Fluxo de Caixa Consolidado</CardTitle>
+                            <CardDescription className="text-xs">Últimos movimentos de todos os subsistemas.</CardDescription>
+                        </div>
                         <TrendingUp className="text-slate-300 h-5 w-5" />
                     </CardHeader>
-                    <CardContent>
-                        <div className="space-y-4">
+                    <CardContent className="p-0">
+                        <div className="divide-y">
                             {recentTrans.length === 0 ? (
-                                <div className="flex items-center justify-center h-40 text-slate-400 italic">
-                                    Nenhuma transacção financeira registada.
+                                <div className="flex items-center justify-center h-60 text-slate-400 italic text-sm">
+                                    Nenhuma transação registada no novo sistema.
                                 </div>
                             ) : (
-                                recentTrans.map((t) => (
-                                    <div key={t.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg group hover:bg-slate-100 transition-colors">
-                                        <div className="flex items-center gap-3">
-                                            <div className={`p-2 rounded-full ${t.tipo === 'receita' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
-                                                {t.tipo === 'receita' ? <ArrowUpRight size={14} /> : <ArrowDownLeft size={14} />}
+                                recentTrans.map((t, idx) => (
+                                    <div key={`${t.id}-${idx}`} className="flex items-center justify-between p-4 hover:bg-slate-50/50 transition-colors">
+                                        <div className="flex items-center gap-4">
+                                            <div className={`p-2 rounded-xl ${t.tipo === 'receita' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                                                {t.tipo === 'receita' ? <ArrowUpRight size={16} /> : <ArrowDownLeft size={16} />}
                                             </div>
                                             <div>
-                                                <p className="text-sm font-bold">{t.descricao}</p>
-                                                <p className="text-[10px] text-slate-400">{new Date(t.data_transacao).toLocaleDateString()}</p>
+                                                <div className="flex items-center gap-2">
+                                                    <p className="text-sm font-bold text-slate-900">{t.descricao}</p>
+                                                    {t.isMali && <Badge className="bg-indigo-100 text-indigo-700 hover:bg-indigo-100 border-none text-[8px] font-black uppercase">Mali</Badge>}
+                                                </div>
+                                                <p className="text-[10px] text-slate-400 font-medium">{(t.categoria || 'geral').replace('_', ' ')} • {new Date(t.created_at).toLocaleDateString()}</p>
                                             </div>
                                         </div>
-                                        <span className={`font-bold ${t.tipo === 'receita' ? 'text-emerald-600' : 'text-red-600'}`}>
-                                            {t.tipo === 'receita' ? '+' : '-'} {Number(t.valor).toLocaleString()} MT
+                                        <span className={`text-sm font-black ${t.tipo === 'receita' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                            {t.tipo === 'receita' ? '+' : '-'} {new Intl.NumberFormat('pt-MZ').format(t.valor)} MT
                                         </span>
                                     </div>
                                 ))
@@ -194,35 +211,46 @@ export default function DashboardPage() {
 
                 <Card className="col-span-3 border-none shadow-sm">
                     <CardHeader>
-                        <CardTitle>Resumo de Saúde</CardTitle>
+                        <CardTitle className="text-base font-bold">Resumo de Saúde</CardTitle>
+                        <CardDescription className="text-xs">Eficiência financeira actual.</CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-6">
+                    <CardContent className="space-y-6 pt-4">
                         <div className="space-y-2">
-                            <div className="flex justify-between text-sm">
-                                <span className="text-slate-500">Margem de Lucro</span>
-                                <span className="font-bold">68%</span>
+                            <div className="flex justify-between text-[11px] font-bold uppercase text-slate-500">
+                                <span>Equilíbrio Hub vs Mali</span>
+                                <span className="text-indigo-600">{stats.saldoTotal > 0 ? ((stats.saldoMali / stats.saldoTotal) * 100).toFixed(0) : 0}% Mali</span>
                             </div>
                             <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                                <div className="h-full bg-emerald-500 w-[68%]" />
+                                <div
+                                    className="h-full bg-indigo-500 transition-all duration-1000"
+                                    style={{ width: `${stats.saldoTotal > 0 ? (stats.saldoMali / stats.saldoTotal) * 100 : 0}%` }}
+                                />
                             </div>
                         </div>
-                        <div className="space-y-2">
-                            <div className="flex justify-between text-sm">
-                                <span className="text-slate-500">Eficiência de Pagamento</span>
-                                <span className="font-bold">82%</span>
-                            </div>
-                            <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                                <div className="h-full bg-indigo-500 w-[82%]" />
+
+                        <div className="p-4 rounded-2xl bg-slate-900 text-white space-y-4 shadow-xl">
+                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Previsão Próximos 30d</p>
+                            <div className="flex items-center justify-between">
+                                <div className="space-y-1">
+                                    <p className="text-xs text-slate-500">A Receber</p>
+                                    <p className="text-lg font-black">+{new Intl.NumberFormat('pt-MZ').format(stats.totalReceber)} MT</p>
+                                </div>
+                                <div className="h-8 w-[1px] bg-slate-800" />
+                                <div className="space-y-1 text-right">
+                                    <p className="text-xs text-slate-500">Estado</p>
+                                    <Badge className="bg-emerald-500/20 text-emerald-400 border-none text-[10px]">Positivo</Badge>
+                                </div>
                             </div>
                         </div>
-                        <div className="pt-4 border-t space-y-3">
-                            <div className="flex items-center gap-2 text-xs text-slate-500">
+
+                        <div className="pt-2 space-y-3">
+                            <div className="flex items-center gap-2 text-[11px] text-slate-500 font-medium">
+                                <div className="h-2 w-2 rounded-full bg-indigo-500" />
+                                O capital Mali representa a liquidez do ecossistema.
+                            </div>
+                            <div className="flex items-center gap-2 text-[11px] text-slate-500 font-medium">
                                 <div className="h-2 w-2 rounded-full bg-emerald-500" />
-                                Lucro acumulado este ano: 120.450 MT
-                            </div>
-                            <div className="flex items-center gap-2 text-xs text-slate-500">
-                                <div className="h-2 w-2 rounded-full bg-blue-500" />
-                                Previsão de recebimento: +45.000 MT
+                                {stats.clientesActivos} clientes activos gerando facturação recorrente.
                             </div>
                         </div>
                     </CardContent>

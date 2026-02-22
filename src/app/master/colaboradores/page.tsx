@@ -23,17 +23,19 @@ import {
     DialogTrigger
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import { Plus, UserCheck, ShieldCheck, Mail, Phone, Trash2 } from 'lucide-react'
+import { Plus, UserCheck, ShieldCheck, Mail, Phone, Trash2, FileText, Download } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { createColaboradorAction, deleteColaboradorAction } from '@/app/actions/colaboradores'
+import { CollaboratorProcessReport } from '@/components/CollaboratorProcessReport'
 
 export default function ColaboradoresPage() {
     const [colaboradores, setColaboradores] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [isSaving, setIsSaving] = useState(false)
     const [isNewOpen, setIsNewOpen] = useState(false)
+    const [selectedColabData, setSelectedColabData] = useState<any>(null)
     const supabase = createClient()
 
     const [formData, setFormData] = useState({
@@ -99,6 +101,32 @@ export default function ColaboradoresPage() {
                 ? prev.especialidades.filter(e => e !== esp)
                 : [...prev.especialidades, esp]
         }))
+    }
+
+    const handleViewProcess = async (colab: any) => {
+        setLoading(true)
+        try {
+            // 1. Get Wallet
+            const { data: wallet } = await supabase.from('carteiras').select('*').eq('colaborador_id', colab.id).single()
+
+            // 2. Get Missions
+            const { data: missions } = await supabase.from('ordens_servico').select('*').eq('colaborador_id', colab.id).order('created_at', { ascending: false })
+
+            // 3. Stats
+            const totalRecebido = missions?.filter(m => m.estado === 'paga').reduce((acc, curr) => acc + (curr.valor_colaborador || 0), 0)
+            const successRate = 100 // default for now
+
+            setSelectedColabData({
+                colab,
+                wallet,
+                missions,
+                stats: { totalRecebido, successRate }
+            })
+        } catch (error) {
+            toast.error('Erro ao gerar relatório de processo')
+        } finally {
+            setLoading(false)
+        }
     }
 
     return (
@@ -208,10 +236,15 @@ export default function ColaboradoresPage() {
                                     {new Intl.NumberFormat('pt-MZ', { style: 'currency', currency: 'MZN' }).format(colab.saldo_pendente || 0)}
                                 </TableCell>
                                 <TableCell className="text-right">
-                                    <Badge variant={colab.user_id ? "secondary" : "outline"} className={colab.user_id ? "bg-emerald-50 text-emerald-700 border-emerald-100" : "text-slate-400"}>
-                                        {colab.user_id ? 'Conta Activa' : 'Sem Acesso'}
-                                    </Badge>
-                                    <Button variant="ghost" size="icon" className="ml-2 text-slate-400 hover:text-red-600" onClick={() => handleDelete(colab.id, colab.user_id)}>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-8 text-[10px] text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+                                        onClick={() => handleViewProcess(colab)}
+                                    >
+                                        <FileText size={14} className="mr-1" /> Processo PDF
+                                    </Button>
+                                    <Button variant="ghost" size="icon" className="ml-1 text-slate-400 hover:text-red-600" onClick={() => handleDelete(colab.id, colab.user_id)}>
                                         <Trash2 size={16} />
                                     </Button>
                                 </TableCell>
@@ -220,6 +253,38 @@ export default function ColaboradoresPage() {
                     </TableBody>
                 </Table>
             </Card>
+
+            {/* Process Report Overly for View/Print */}
+            {selectedColabData && (
+                <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 overflow-y-auto print:p-0 print:bg-white no-print-backdrop">
+                    <div className="relative max-w-[900px] w-full my-8">
+                        <div className="absolute -top-12 right-0 flex gap-4 no-print text-white">
+                            <Button variant="ghost" className="text-white hover:text-white hover:bg-white/10" onClick={() => setSelectedColabData(null)}>Fechar</Button>
+                            <Button className="bg-emerald-600 hover:bg-emerald-700 font-bold" onClick={() => window.print()}>
+                                <Download className="mr-2 h-4 w-4" /> Imprimir / Salvar PDF
+                            </Button>
+                        </div>
+                        <div className="bg-white rounded-lg shadow-2xl overflow-hidden" id="termo-print">
+                            <CollaboratorProcessReport
+                                colab={selectedColabData.colab}
+                                missions={selectedColabData.missions}
+                                payments={[]}
+                                wallet={selectedColabData.wallet}
+                                stats={selectedColabData.stats}
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <style jsx global>{`
+                @media print {
+                  body * { visibility: hidden; }
+                  #termo-print, #termo-print * { visibility: visible; }
+                  #termo-print { position: absolute; left: 0; top: 0; width: 100%; border: none; shadow: none; }
+                  .no-print { display: none !important; }
+                }
+            `}</style>
         </div>
     )
 }

@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { CollaboratorSidebar } from '@/components/CollaboratorSidebar'
 import { NotificationCenter } from '@/components/NotificationCenter'
-import { Menu } from 'lucide-react'
+import { Menu, LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { createClient } from '@/utils/supabase/client'
 
 export default function CollaboratorLayout({
     children,
@@ -12,6 +13,33 @@ export default function CollaboratorLayout({
     children: React.ReactNode
 }) {
     const [sidebarOpen, setSidebarOpen] = useState(false)
+    const [userName, setUserName] = useState('Colaborador')
+    const [userInitial, setUserInitial] = useState('C')
+    const supabase = createClient()
+
+    useEffect(() => {
+        const fetchUserData = async () => {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (user) {
+                const { data } = await supabase
+                    .from('colaboradores')
+                    .select('nome')
+                    .eq('email', user.email)
+                    .single()
+
+                if (data?.nome) {
+                    setUserName(data.nome)
+                    setUserInitial(data.nome.charAt(0).toUpperCase())
+                }
+            }
+        }
+        fetchUserData()
+    }, [])
+
+    const handleSignOut = async () => {
+        await supabase.auth.signOut()
+        window.location.href = '/auth/login'
+    }
 
     return (
         <div className="min-h-screen bg-slate-50">
@@ -44,10 +72,17 @@ export default function CollaboratorLayout({
                         <div className="flex items-center gap-2 lg:gap-4">
                             <NotificationCenter />
                             <div className="h-4 w-[1px] bg-slate-200 mx-1 lg:mx-2" />
-                            <span className="text-xs lg:text-sm text-slate-500 hidden sm:inline">Colaborador</span>
+                            <span className="text-xs lg:text-sm text-slate-500 hidden sm:inline">{userName}</span>
                             <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">
-                                C
+                                {userInitial}
                             </div>
+                            <button
+                                onClick={handleSignOut}
+                                title="Sair do Sistema"
+                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors ml-1"
+                            >
+                                <LogOut size={18} />
+                            </button>
                         </div>
                     </div>
                 </header>

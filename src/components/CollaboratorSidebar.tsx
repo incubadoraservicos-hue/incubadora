@@ -19,6 +19,8 @@ const menuItems = [
     { icon: ClipboardList, label: 'Minhas Missões', href: '/colaborador/minhas-os' },
     { icon: FileSignature, label: 'Meus Acordos', href: '/colaborador/meus-contratos' },
     { icon: Wallet, label: 'Meu Saldo', href: '/colaborador/meu-saldo' },
+    { icon: Wallet, label: 'Minha Carteira', href: '/colaborador/carteira' },
+    { icon: ClipboardList, label: 'Crédito Mali', href: '/colaborador/creditos' },
     { icon: Files, label: 'Meus Documentos', href: '/colaborador/meus-documentos' },
     { icon: Settings, label: 'Configurações', href: '/colaborador/configuracoes' },
 ]

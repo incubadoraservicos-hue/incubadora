@@ -34,13 +34,16 @@ import {
 } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
+import { ReceiptModal } from '@/components/ReceiptModal'
 
 export default function ColaboradorOSPage() {
     const [os, setOs] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [reportText, setReportText] = useState('')
     const [selectedOS, setSelectedOS] = useState<any>(null)
+    const [receiptOS, setReceiptOS] = useState<any>(null)
     const [colabId, setColabId] = useState<string | null>(null)
+    const [colabName, setColabName] = useState<string>('')
     const [notifEnabled, setNotifEnabled] = useState(false)
     const supabase = createClient()
 
@@ -57,11 +60,12 @@ export default function ColaboradorOSPage() {
         const { data: { user } } = await supabase.auth.getUser()
 
         if (user) {
-            // Join with colaboradores to get proper ID
-            const { data: colab } = await supabase.from('colaboradores').select('id').eq('email', user.email).single()
+            // Join with colaboradores to get proper ID and Name
+            const { data: colab } = await supabase.from('colaboradores').select('id, nome').eq('email', user.email).single()
 
             if (colab) {
                 setColabId(colab.id)
+                setColabName(colab.nome)
                 const { data, error } = await supabase
                     .from('ordens_servico')
                     .select('*')
@@ -119,8 +123,10 @@ export default function ColaboradorOSPage() {
         <div className="space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h2 className="text-3xl font-bold tracking-tight text-[#002B5B]">Minhas Missões & Serviços</h2>
-                    <p className="text-slate-500 text-sm">Aceite novos desafios e reporte o seu progresso.</p>
+                    <h2 className="text-3xl font-bold tracking-tight text-[#002B5B]">
+                        Olá, {colabName || 'Colaborador'}
+                    </h2>
+                    <p className="text-slate-500 text-sm">Bem-vindo ao seu painel de Missões & Serviços.</p>
                 </div>
                 {!notifEnabled && (
                     <Button
@@ -173,15 +179,31 @@ export default function ColaboradorOSPage() {
                                 </div>
                             </div>
 
+                            {item.revisao_master && (
+                                <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-lg">
+                                    <div className="text-[10px] font-bold text-blue-600 uppercase mb-1 flex items-center">
+                                        <AlertCircle size={10} className="mr-1" /> Revisão do Master
+                                    </div>
+                                    <p className="text-[11px] text-slate-700 italic">"{item.revisao_master}"</p>
+                                </div>
+                            )}
+
                             <div className="flex flex-col gap-2 mt-6">
                                 {item.estado === 'enviada' && (
                                     <div className="grid grid-cols-2 gap-2">
-                                        <Button className="bg-indigo-600 hover:bg-indigo-700 h-8 text-xs" onClick={() => handleAction(item.id, 'confirmada')}>
+                                        <Button className="bg-indigo-600 hover:bg-indigo-700 h-8 text-xs font-bold" onClick={() => handleAction(item.id, 'confirmada')}>
                                             Aceitar
                                         </Button>
                                         <Button variant="outline" className="text-red-600 hover:bg-red-50 h-8 text-xs" onClick={() => handleAction(item.id, 'rejeitada')}>
                                             Rejeitar
                                         </Button>
+                                        <div className="col-span-2 mt-1">
+                                            <Link href="/colaborador/documentos">
+                                                <Button variant="ghost" className="w-full text-[10px] h-7 text-blue-600 bg-blue-50/50 border border-blue-100 hover:bg-blue-100">
+                                                    Ver Termo de Compromisso
+                                                </Button>
+                                            </Link>
+                                        </div>
                                     </div>
                                 )}
                                 {item.estado === 'confirmada' && (
@@ -218,15 +240,37 @@ export default function ColaboradorOSPage() {
                                     </Dialog>
                                 )}
                                 {item.estado === 'concluida' && (
-                                    <div className="w-full flex items-center justify-center p-2 bg-slate-50 text-slate-500 text-[10px] rounded-md border border-slate-100">
-                                        <Clock size={12} className="mr-2" /> Aguardando revisão do Master
+                                    <div className={`w-full flex items-center justify-center p-2 rounded-md border text-[10px] font-bold ${item.revisao_master
+                                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                            : 'bg-slate-50 text-slate-500 border-slate-100'
+                                        }`}>
+                                        {item.revisao_master ? (
+                                            <><CheckCircle2 size={12} className="mr-2" /> Serviço Finalizado & Revisto</>
+                                        ) : (
+                                            <><Clock size={12} className="mr-2" /> Aguardando revisão do Master</>
+                                        )}
                                     </div>
+                                )}
+                                {item.estado === 'paga' && (
+                                    <Button
+                                        variant="outline"
+                                        className="w-full text-emerald-600 border-emerald-200 bg-emerald-50 h-8 text-xs font-bold"
+                                        onClick={() => setReceiptOS(item)}
+                                    >
+                                        <Wallet size={14} className="mr-2" /> Baixar Comprovativo
+                                    </Button>
                                 )}
                             </div>
                         </CardContent>
                     </Card>
                 ))}
             </div>
+
+            <ReceiptModal
+                isOpen={!!receiptOS}
+                onClose={() => setReceiptOS(null)}
+                os={receiptOS}
+            />
         </div>
     )
 }
