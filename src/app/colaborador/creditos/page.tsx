@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { HandCoins, Info, CheckCircle2, AlertTriangle, Clock, Ban } from 'lucide-react'
+import { HandCoins, Info, CheckCircle2, AlertTriangle, Clock, Ban, ShieldCheck } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import {
@@ -276,8 +276,8 @@ export default function CreditosPage() {
                                     </TableCell>
                                     <TableCell>
                                         <Badge className={`text-[9px] font-black uppercase border-none px-2 py-0.5 ${c.estado === 'aprovado' ? 'bg-emerald-100 text-emerald-700' :
-                                                c.estado === 'pendente' ? 'bg-amber-100 text-amber-700' :
-                                                    c.estado === 'pago' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'
+                                            c.estado === 'pendente' ? 'bg-amber-100 text-amber-700' :
+                                                c.estado === 'pago' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'
                                             }`}>
                                             {c.estado}
                                         </Badge>
