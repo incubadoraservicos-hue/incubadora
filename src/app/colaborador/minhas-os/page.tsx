@@ -1,5 +1,7 @@
 'use client'
 
+import Link from 'next/link'
+
 import { useState, useEffect } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -241,8 +243,8 @@ export default function ColaboradorOSPage() {
                                 )}
                                 {item.estado === 'concluida' && (
                                     <div className={`w-full flex items-center justify-center p-2 rounded-md border text-[10px] font-bold ${item.revisao_master
-                                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                            : 'bg-slate-50 text-slate-500 border-slate-100'
+                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                        : 'bg-slate-50 text-slate-500 border-slate-100'
                                         }`}>
                                         {item.revisao_master ? (
                                             <><CheckCircle2 size={12} className="mr-2" /> Serviço Finalizado & Revisto</>
